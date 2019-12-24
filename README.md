@@ -88,7 +88,7 @@ Hier kann der geneigte Modellbauer die Kombination aus Microprozessor
 und Sensor in eine geeignete Klemmvorrichtung \[ein-\]bauen, die ein
 rutschfestes Klemmen am Ruder gewährleistet. So sieht der Prototyp des
 Authors aus:
-![Klemm](https://raw.githubusercontent.com/Pulsar07/RcSetupTool/master/doc/img/RCST_InOperation.png)
+![Klemm](https://raw.githubusercontent.com/Pulsar07/RcSetupTool/master/doc/img/RCST_InOperation.jpg)
 
 # <span id="hmi_sec_de" class="anchor"></span> Anleitung
 
@@ -204,7 +204,7 @@ Hersteller von RC-Systemen voreingestellt werden, damit die Anzeige
 exakt mit den Werte des genutzten RC-System übereinstimmt.
 ![ServoPage](https://raw.githubusercontent.com/Pulsar07/RcSetupTool/master/doc/img/RCST_ServoPage.png)
 
-## <span id="hmi_subsec_de_sc" class="anchor"></span> Servo-Controller
+## <span id="hmi_subsec_de_ms" class="anchor"></span> Steuern und Messen
 
 In dieser Ansicht kann sowohl der Servo gesteurt als auch der
 Winkel-Sensor abgelesen werden. Dies ist vor allem bei Servo- und
