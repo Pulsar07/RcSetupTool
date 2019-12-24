@@ -1,0 +1,50 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Arduino stuff
+*.bin
+*.eep
+*.elf
+*.hex
+
+# vim stuff
+*.swp
+
+# private stuff
+myWifiSettings.h
+mySettings.h
+tmp/*
+doc/html
+doc/html/*
+libraries/*
+html/*
