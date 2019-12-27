@@ -6,10 +6,12 @@ const char MULTI_TOOL_page[] PROGMEM = R"=====(
   <meta name="viewport" content="width=device-width, initial-scale=0.5>
   <meta http-equiv="cache-control" content="no-cache, must-revalidate, post-check=0, pre-check=0" />
   <meta http-equiv="cache-control" content="max-age=0" />
+  <meta http-equiv="cache-control" content="no-cache" />
   <meta http-equiv="expires" content="0" />
   <meta http-equiv="expires" content="Tue, 01 Jan 1980 1:00:00 GMT" />
   <meta http-equiv="pragma" content="no-cache" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimum-scale=1.0, maximum-scale=1.0">
+  <link rel="icon" href="#" />
   <title>RC-Einstelltool</title>
   <link rel="stylesheet" href="./styles.css">
   <script type="text/javascript" src="./script.js"></script>
@@ -34,8 +36,8 @@ const char MULTI_TOOL_page[] PROGMEM = R"=====(
       onclick="sendNameValue(this.name, this.value)">TARA</button>
     </div>
     <div class="col-half">
-     <input type="number" class=measureInput id="id_rudderDepth" onchange="sendNameValue(this.id, this.value*10)"
-      style="width: 4em" maxlength="3" min="5" max="150" step="1" value="40"></input>mm
+     <input type="number" class=measureInput id="id_rudderSize" onchange="sendNameValue(this.id, this.value*10)"
+      style="width: 4em" maxlength="3" min="5" max="150" step="1" value="5"></input>mm
     </div>
    </div>
    <div class="row">
@@ -91,7 +93,7 @@ const char MULTI_TOOL_page[] PROGMEM = R"=====(
    </div>
    <div class="row">
     <div class="col-declaration">
-     <label for="id_start">Setzte Position :</label>
+     <label for="id_start">Setze Position :</label>
     </div>
     <div class="col-full">
      <a class="c_button limiter" id="id_toggle_min" name="cmd_limit" 
@@ -140,7 +142,7 @@ const char MULTI_TOOL_page[] PROGMEM = R"=====(
    </div>
    <div class="row">
     <div class="col-declaration">
-     <label>Servo-Dreh-Richtung:</label>
+     <label>Servo-Dreh-Richtung :</label>
     </div>
     <div class="col-full">
      <label>
@@ -151,7 +153,7 @@ const char MULTI_TOOL_page[] PROGMEM = R"=====(
    </div>
    <div class="row">
     <div class="col-declaration">
-     <label>Maus-Rad bewegt Servo:</label>
+     <label>Maus-Rad bewegt Servo :</label>
     </div>
     <div class="col-full">
      <label>
@@ -166,7 +168,7 @@ const char MULTI_TOOL_page[] PROGMEM = R"=====(
    </div>
    <div class="row">
     <div class="col-declaration">
-     <label>Ein&shy;stell&shy;ungen:</label>
+     <label>Ein&shy;stell&shy;ungen :</label>
     </div>
     <div class="col-full">
       <label>
@@ -178,6 +180,18 @@ const char MULTI_TOOL_page[] PROGMEM = R"=====(
          max: <span id="id_pulse_width_max">2225</span>&micro;s
          )
      </label>
+    </div>
+   </div>
+   <div class="row">
+    <div class="col-declaration">
+     <label>Protokoll :</label>
+    </div>
+    <div class="col-full">
+     <button type="button" class="protocol" id="id_dataset" name="cmd_dataset" value="true"
+      onclick="sendNameValue(this.name, this.value)">Setze Wert</button>
+     <input type="text" class=mmeasureInput id="id_dataset_descr" onchange="sendNameValue(this.id, this.value)"
+      style="width: 20em" maxlength="100" placeholder="Beschreibung des Datensatzes"></input>
+     <button type="button" class="protocol" onclick="window.location.href='/showProtocolTable'">zeige Protokoll</button>
     </div>
    </div>
   </div class="container">
@@ -199,16 +213,16 @@ const char MULTI_TOOL_page[] PROGMEM = R"=====(
  <script>
  
   getData(
-    "id_rudderDepth", "id_amplitudeValue", "id_angleValue",
+    "id_rudderSize", "id_amplitudeValue", "id_angleValue",
     "id_pwm_value", "id_percent_value", "id_pwm_setvalue", "id_percent_setvalue", 
     "id_pos_slider", "id_servo_direction",
     "id_load_pos_1", "id_load_pos_2", "id_load_pos_3", "id_load_pos_4", "id_load_pos_5",
     "id_limit_min", "id_limit_max",
     "id_pulse_width_min", "id_pulse_width_max", "id_pulse_width_p100", "id_pulse_width_n100", 
+    "id_dataset_descr",
     "id_wheel_activate", "id_wheel_factor",
     "id_vendor_settings", "id_version"
   );
- 
   setInterval(function() {
     // Call a function repetatively 
     getData("id_angleValue", "id_amplitudeValue");
@@ -216,14 +230,12 @@ const char MULTI_TOOL_page[] PROGMEM = R"=====(
  
   function moveServoByMouseWheel() {
     window.addEventListener("wheel", function(e) {
-      e.stopPropagation();
-      var dir = Math.sign(e.deltaY);
-      if (typeof e.stopPropagation != "undefined") {
+      var wheelActive = document.getElementById('id_wheel_activate');
+      if (wheelActive.checked == true) {
         e.stopPropagation();
-      } else {
-        e.cancelBubble = true;
+        var dir = Math.sign(e.deltaY);
+        sendNameValue("evt_wheel", dir);
       }
-      sendNameValue("evt_wheel", dir);
     });
   }
   moveServoByMouseWheel();

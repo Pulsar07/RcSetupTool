@@ -62,6 +62,10 @@ const char SCRIPT[] PROGMEM = R"=====(
           var elementValue = element[1];
           // console.log("elementValue:" + elementValue);
           var htmlElement = document.getElementById(elementId);
+          if (htmlElement === null) {
+            console.error("in parseResponose: not element with given id found :" + elementId);
+            continue;
+          }
           if (htmlElement.type == "radio") {
              htmlElement.checked = true;
           } else if (htmlElement.type == "checkbox") {

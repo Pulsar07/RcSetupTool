@@ -9,6 +9,7 @@ const char ANGLE_SENSOR_page[] PROGMEM = R"=====(
   <meta http-equiv="expires" content="Tue, 01 Jan 1980 1:00:00 GMT" /> 
   <meta http-equiv="pragma" content="no-cache" /> 
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimum-scale=1.0, maximum-scale=1.0">
+  <link rel="icon" href="#" />
   <link rel="stylesheet" href="./styles.css">
   <script type="text/javascript" src="./script.js"></script>
   <title>RC-Einstell-Tool</title>
@@ -53,11 +54,11 @@ const char ANGLE_SENSOR_page[] PROGMEM = R"=====(
  
    <div class="row">
     <div class="col-full">
-     <input type="number" class=measureInput id="id_rudderDepth" onchange="sendNameValue(this.id, this.value*10)"
+     <input type="number" class=measureInput id="id_rudderSize" onchange="sendNameValue(this.id, this.value*10)"
       style="width: 6em" maxlength="3" min="5" max="150" step="1" value="0"></input>
     </div>
     <div class="col-declaration">
-     <label for="id_rudderDepth" class=measureValue >Setze Rudertiefe in mm</label>
+     <label for="id_rudderSize" class=measureValue >Setze Rudertiefe in mm</label>
     </div>
    </div>
 
@@ -171,7 +172,7 @@ const char ANGLE_SENSOR_page[] PROGMEM = R"=====(
      getData("id_angleValue", "id_amplitudeValue", "cpx_flightphase" );
      beepTarget();
    }, 500); // 500mSeconds update rate
-   getData("id_version", "id_rudderDepth", "id_targetAmplitude", "id_sensortype", "id_amplitudeCalcMethod"); 
+   getData("id_version", "id_rudderSize", "id_targetAmplitude", "id_sensortype", "id_amplitudeCalcMethod"); 
   </script>
   </body>
   </html>

@@ -10,6 +10,7 @@ const char SERVO_page[] PROGMEM = R"=====(
   <meta http-equiv="expires" content="Tue, 01 Jan 1980 1:00:00 GMT" />
   <meta http-equiv="pragma" content="no-cache" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimum-scale=1.0, maximum-scale=1.0">
+  <link rel="icon" href="#" />
   <link rel="stylesheet" href="./styles.css">
   <script type="text/javascript" src="./script.js"></script>
   <title>RC-Einstell-Tool</title>
@@ -181,15 +182,12 @@ const char SERVO_page[] PROGMEM = R"=====(
 
   function moveServoByMouseWheel() {
     window.addEventListener("wheel", function(e) {
-      // e.stopPropagation();
-      e.preventDefault();
-      var dir = Math.sign(e.deltaY);
-      if (typeof e.stopPropagation != "undefined") {
+      var wheelActive = document.getElementById('id_wheel_activate');
+      if (wheelActive.checked == true) {
         e.stopPropagation();
-      } else {
-        e.cancelBubble = true;
+        var dir = Math.sign(e.deltaY);
+        sendNameValue("evt_wheel", dir);
       }
-      sendNameValue("evt_wheel", dir);
     });
   }
   moveServoByMouseWheel();

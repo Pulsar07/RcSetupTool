@@ -9,6 +9,7 @@ const char ADMIN_page[] PROGMEM = R"=====(
   <meta http-equiv="expires" content="0" />
   <meta http-equiv="expires" content="Tue, 01 Jan 1980 1:00:00 GMT" />
   <meta http-equiv="pragma" content="no-cache" />
+  <link rel="icon" href="#" />
   <link rel="stylesheet" href="./styles.css">
   <script type="text/javascript" src="./script.js"></script>
   <title>RC-Einstell-Tool</title>
@@ -388,18 +389,12 @@ const char ADMIN_page[] PROGMEM = R"=====(
      "id_apSsid",
      "id_apActive",
      "id_wlanConnetion",
-     "id_rcvendor_",
+     "id_rcvendor",
+     "id_rainer",
      "id_pulse_width_min",
      "id_pulse_width_max",
      "id_pulse_width_n100",
      "id_pulse_width_p100",
-     "id_rcvendor_jeti",
-     "id_rcvendor_hott",
-     "id_rcvendor_spektrum",
-     "id_rcvendor_futaba",
-     "id_rcvendor_multiplex",
-     "id_rcvendor_taranis",
-     "id_rcvendor_custom",
      "id_invertAmplitude",
      "id_invertAngle",
      "nm_anglePrecision",
@@ -407,7 +402,6 @@ const char ADMIN_page[] PROGMEM = R"=====(
      "id_invertAmplitude",
      "nm_precisionAmplitude",
      "nm_distancetype",
-     "id_resp_calibrate",
      "id_version"
    );
    init();

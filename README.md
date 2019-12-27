@@ -210,6 +210,11 @@ In dieser Ansicht kann sowohl der Servo gesteurt als auch der
 Winkel-Sensor abgelesen werden. Dies ist vor allem bei Servo- und
 Gestänge-Einbauten ein große Hilfe.
 ![MultiToolPage](https://raw.githubusercontent.com/Pulsar07/RcSetupTool/master/doc/img/RCST_MultiToolPage.png)
+Zusätzlich können den in den Preset-Buttons gespeicherten Servo-Werte
+(und die gemessenen Winkel- und Ruderauschlagswerte) und eine
+Nutzer-Beschreibung des Datensatzes festgehalten und mittels der
+Funktion "Zeige Protokoll" in Tabellenform ausgegeben werden.
+![ProtocolPage](https://raw.githubusercontent.com/Pulsar07/RcSetupTool/master/doc/img/RCST_ProtocolPage.png)
 
 Weitere Details gibt es unter [Albatross, Seite für Modellflug und
 Technik](http://www.so-fa.de/nh/RcSetupTool)

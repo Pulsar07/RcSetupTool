@@ -1,7 +1,7 @@
 #include <EEPROM.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
-#define DEBUG_ESP_MDNS
+// #define DEBUG_ESP_MDNS
 
 #include <ESP8266mDNS.h>
 #include <DNSServer.h>
@@ -12,11 +12,15 @@
 #include "htmlServoPage.h"
 #include "htmlAngleSensorPage.h"
 #include "htmlMultiToolPage.h"
+#include "htmlShowProtocolTablePage.h"
 #include "htmlScript.h"
 #include "htmlStyles.h"
 #include "Config.h"
 
+// #define SUPPORT_MMA8451
+#ifdef SUPPORT_MMA8451
 #include <Adafruit_MMA8451.h>         // MMA8451 library
+#endif
 // I2Cdev and MPU6050 must be installed as libraries, or else the .cpp/.h files
 // for both classes must be in the include path of your project
 #include "I2Cdev.h"
@@ -32,7 +36,8 @@
 // Version history
 // V0.10 : full functional initial version
 //         merge of ServoController and RuderwegMesssensor
-#define APP_VERSION "V0.10"
+// V0.11 : protocol page to multiToolPage added and some bug fixes
+#define APP_VERSION "V0.11"
 
 /**
  * \file RcSetupTool.ino
@@ -51,12 +56,12 @@
  * \mainpage RC-Einstell-Tool Projekt zur Ansteuerung eines Modellflug-Servos und zum Vermessen von Ruderausschlägen mittels eines Winkelsensors
  *
  * \section intro_sec_de Übersicht
- * Das RC Einstell Tool kann eine Servo mittels PWM Pulserzeugung steuern und die Ansteuerdaten anzeigen. 
+ * Das RC Einstell Tool kann eine Servo mittels PWM Pulserzeugung steuern und die Ansteuerdaten anzeigen.
  * Zusatzlich kann mittels eines Winkelsensors der Ruderausschlag sehr genau vermessen werden (besser als 0.5mm).
  * Die Benutzeroberfläches ist als Web-Oberfläche ausgelegt, was eine Bedienung auch mit dem Smartphone zulässt.
  * Eine einfach kleine Power-Bank dient als Stromversorgung und man kann extrem einfach und schnell auf der Werkbank beim
  * Bau oder bei Endeinstellarbeiten alle wichtigen Daten schnell, genau und vollkommen reproduzierbar ablesen.
- * Hiermit lassen sich Einstellarbeiten auf der Werkbank oder am aufgebauten Modell sehr professionell, schnell, 
+ * Hiermit lassen sich Einstellarbeiten auf der Werkbank oder am aufgebauten Modell sehr professionell, schnell,
  * genau und reproduzierbar durchführen.
  * Dieses Projekt ist die Zusammenführung von https://github.com/Pulsar07/RuderwegMessSensor und https://github.com/Pulsar07/ServoController
  * ![Architektur](https://raw.githubusercontent.com/Pulsar07/RcSetupTool/master/doc/img/RCST_Architecture.png)
@@ -86,14 +91,14 @@
  * Mikrokontroller benötigt. Das Layout und die Software sind so ausgelegt, dass mit einer Stiftleiste
  * 4x1 das Sensorboard mit dem Gesicht in Richtung Mikrokontroller direkt verlötet werden kann.
  * ![Schaltplan](https://raw.githubusercontent.com/Pulsar07/RcSetupTool/master/doc/img/RCST_CircuitDiagram.png)
- * <br>Der Servo wird lediglich mittels eines Signal-Kabels auf den D7 Pin des Microcontrollers verbunden. 
- * Die Plus- und Ground-Verbindung wird mittels eines auftrennten und wieder zusammengefügten USB-MicroUSB Kabels 
- * hergestellt. Die Servo Stromversorgung wird einfach mittels eines Servo-Buchsenkabels erstellt und 
- * sollte nicht über den Microkontroller erfolgen, da die Stromstärke zu hoch für 
+ * <br>Der Servo wird lediglich mittels eines Signal-Kabels auf den D7 Pin des Microcontrollers verbunden.
+ * Die Plus- und Ground-Verbindung wird mittels eines auftrennten und wieder zusammengefügten USB-MicroUSB Kabels
+ * hergestellt. Die Servo Stromversorgung wird einfach mittels eines Servo-Buchsenkabels erstellt und
+ * sollte nicht über den Microkontroller erfolgen, da die Stromstärke zu hoch für
  * diesen ist.
 
  * \subsection hardware_subsec_de_kv Ruderklemmvorrichtung
- * Hier kann der geneigte Modellbauer die Kombination aus Microprozessor und Sensor in eine geeignete Klemmvorrichtung [ein-]bauen, 
+ * Hier kann der geneigte Modellbauer die Kombination aus Microprozessor und Sensor in eine geeignete Klemmvorrichtung [ein-]bauen,
  * die ein rutschfestes Klemmen am Ruder gewährleistet.
  * So sieht der Prototyp des Authors aus:
  * ![Klemm](https://raw.githubusercontent.com/Pulsar07/RcSetupTool/master/doc/img/RCST_InOperation.jpg)
@@ -135,12 +140,12 @@
  * Elektronikbausteinen nach oben. Nur so wird die oben genannte Genauigkeit erreicht.
  *   * Achsen und Anzeige-Genauigkeit: Auf der Konfigurationsseite, kann die Bezugs-Achse
  * der Winkelmessung, je nach Einbaulage in der Klemmeinrichtung ausgewählt werden.
- *   * Kalibrierungsoffset: Hier können Kalibrierungs-Messwerte für +/- 45° Referenzmessungen eingebeben werden und 
+ *   * Kalibrierungsoffset: Hier können Kalibrierungs-Messwerte für +/- 45° Referenzmessungen eingebeben werden und
  * aktiviert/deaktiviert werden, um die höchst mögliche Genauigkeit zu erreichen. Damit werden
  * dann die Messwerte auf die Offsetwerte interpoliert.
- * Der Grund hierfür ist, wie die Erfahrung zeigt, dass die verfügbaren günstggen China-Importe, nicht 
- * die höchste Qualität aufweisen. Z.T. lassen sich diese Sensoren 
- * einfach nicht kalibrieren. Ein manuelles Kalibrieren mit diesem Kalibrierungsoffset, bringt jedoch 
+ * Der Grund hierfür ist, wie die Erfahrung zeigt, dass die verfügbaren günstggen China-Importe, nicht
+ * die höchste Qualität aufweisen. Z.T. lassen sich diese Sensoren
+ * einfach nicht kalibrieren. Ein manuelles Kalibrieren mit diesem Kalibrierungsoffset, bringt jedoch
  * meist den gewünschten Erfolg
  * (siehe Experten-Einstellungen) und gewährleistet genaues Arbeiten.
  *
@@ -178,7 +183,7 @@
  * mittels der Maus.
  * Es sind für diverse Aufgaben noch 5 vordefinierte und einstellbare (Save) Positions-Buttons
  * verfügbar.
- * Die Limit-Buttons, können zum Begrenzen des Servo-Wegs benutzt werden, um ein versehntliches Überfahren eines 
+ * Die Limit-Buttons, können zum Begrenzen des Servo-Wegs benutzt werden, um ein versehntliches Überfahren eines
  * mechanischen Limits zu verhindern.
  * Auf der Einstellseite, können die Limits und 100%-Settings für verschiedene Hersteller von RC-Systemen voreingestellt werden,
  * damit die Anzeige exakt mit den Werte des genutzten RC-System übereinstimmt.
@@ -188,6 +193,11 @@
  * In dieser Ansicht kann sowohl der Servo gesteurt als auch der Winkel-Sensor abgelesen werden.
  * Dies ist vor allem bei Servo- und Gestänge-Einbauten ein große Hilfe.
  * ![MultiToolPage](https://raw.githubusercontent.com/Pulsar07/RcSetupTool/master/doc/img/RCST_MultiToolPage.png)
+ * Zusätzlich können den in den Preset-Buttons gespeicherten Servo-Werte 
+ * (und die gemessenen Winkel- und Ruderauschlagswerte) und eine Nutzer-Beschreibung 
+ * des Datensatzes festgehalten und mittels der Funktion "Zeige Protokoll" 
+ * in Tabellenform ausgegeben werden.
+ * ![ProtocolPage](https://raw.githubusercontent.com/Pulsar07/RcSetupTool/master/doc/img/RCST_ProtocolPage.png)
  *
  * Weitere Details gibt es unter <a href="http://www.so-fa.de/nh/RcSetupTool">Albatross, Seite für Modellflug und Technik</a>
  *
@@ -201,12 +211,16 @@ IPAddress ourNetmask(255,255,255,0);
 
 static configData_t ourConfig;
 
+#ifdef SUPPORT_MMA8451
 static Adafruit_MMA8451 mma;
+#endif
 static MPU6050 mpu;
 static const uint8_t MPU6050ADDR1 = 0x68; // I2C address of the MPU-6050. If AD0 pin is set to HIGH, the I2C address will be 0x69.
 static const uint8_t MPU6050ADDR2 = 0x69; // I2C address of the MPU-6050. If AD0 pin is set to HIGH, the I2C address will be 0x69.
+#ifdef SUPPORT_MMA8451
 static const uint8_t MMA8451ADDR1 = 0x1C; // I2C address of the MMA-8451. If AD0 pin is set to LOW, the I2C address will be 0x1C.
 static const uint8_t MMA8451ADDR2 = 0x1D; // I2C address of the MMA-8451. If AD0 pin is set to LOW, the I2C address will be 0x1C.
+#endif
 static uint8_t ourSCL_Pin;
 static uint8_t ourSDA_Pin;
 static uint8_t ourI2CAddr;
@@ -230,7 +244,7 @@ static double ourSmoothedGyro_z = 0;
 static double ourTaraGyro_x = 0;
 static double ourTaraGyro_y = 0;
 static double ourTaraGyro_z = 0;
-static double ourRudderDepth = 30;
+static double ourRudderSize = 30;
 static double ourTargetAmplitude = 5;
 
 static float ourNullAmpl;
@@ -243,6 +257,28 @@ static boolean ourIsMeasureActive=false;
 
 
 const int SERVO_PIN = D7;
+
+typedef struct {
+  String descr;
+  int servoPresets[CONFIG_SERVO_PRESET_L];
+  int limitLow;
+  int limitHigh;
+  float angle;
+  int servoPos;
+  float rudderSize;
+  float presetAngles[CONFIG_SERVO_PRESET_L];
+} servoDataSet_t;
+
+#define DATA_SET_IDX_MAX 10
+#define ANGLE_UNSET_VAL 999.0f
+typedef struct {
+  String datasetDescription;
+  int8_t dataSetIdxUnused=0;
+  servoDataSet_t dataSets[DATA_SET_IDX_MAX];
+  float currentPresetAngles[CONFIG_SERVO_PRESET_L];
+} protocolData_t;
+
+protocolData_t ourProtocolData;
 
 Servo ourServo;
 int16_t ourServoPos;
@@ -277,13 +313,16 @@ void setup()
   if (isI2C_MPU6050Addr()) {
     Wire.begin(ourSDA_Pin, ourSCL_Pin); //SDA, SCL
     initMPU6050();
+#ifdef SUPPORT_MMA8451
   } else if (isI2C_MMA8451Addr()) {
     initMMA8451();
+#endif
   }
 
   setupWiFi();
   setupWebServer();
   initServo();
+  initProtocolData();
 }
 
 void loop()
@@ -340,6 +379,12 @@ void initServoControllerConfig() {
   initServoRangeSettings(ourConfig.servoRangeByVendor);
   for (int i=0; i<CONFIG_SERVO_PRESET_L; i++) {
     setPresetInPercent(i, (-100 + i*50));
+  }
+}
+
+void initProtocolData() {
+  for (int i=0; i<CONFIG_SERVO_PRESET_L; i++) {
+    ourProtocolData.currentPresetAngles[i] = ANGLE_UNSET_VAL;
   }
 }
 
@@ -412,13 +457,15 @@ void printServoRanges() {
 void readMotionSensor() {
   if (isI2C_MPU6050Addr()) {
     mpu.getMotion6(&ourAccelerometer_x, &ourAccelerometer_y, &ourAccelerometer_z, &gyro_x, &gyro_y, &gyro_z);
-  } else
-  if (isI2C_MMA8451Addr()) {
+  } 
+#ifdef SUPPORT_MMA8451
+  else if (isI2C_MMA8451Addr()) {
     mma.read();
     ourAccelerometer_x = mma.x;
     ourAccelerometer_y = mma.y;
     ourAccelerometer_z = mma.z;
   }
+#endif
 
   const static double smooth = 0.98d;
   // print out data
@@ -488,22 +535,29 @@ double getAmplitude(double aAngle) {
   double res;
   if (ourConfig.amplitudeCalcMethod == CHORD) {
     // sin (angle/2) = sin(angle/2 *M_PI/180)
-    res = sin(aAngle*M_PI/360) * 2 * ourRudderDepth * ourConfig.amplitudeInversion;
+    res = sin(aAngle*M_PI/360) * 2 * ourRudderSize * ourConfig.amplitudeInversion;
   } else if (ourConfig.amplitudeCalcMethod == VERTICAL_DISTANCE) {
-    res =  sin(aAngle*M_PI/180) * ourRudderDepth * ourConfig.amplitudeInversion;
+    res =  sin(aAngle*M_PI/180) * ourRudderSize * ourConfig.amplitudeInversion;
   } else {
-    res =  (aAngle/180*M_PI * ourRudderDepth) * ourConfig.amplitudeInversion;
+    res =  (aAngle/180*M_PI * ourRudderSize) * ourConfig.amplitudeInversion;
   }
   return res;
 }
 
+float getRoundedAngle(double aAngle) {
+  return roundPrecision(aAngle, ourConfig.anglePrecision);
+}
 
 float getRoundedAngle() {
-  return roundPrecision(getAngle(), ourConfig.anglePrecision);
+  return getRoundedAngle(getAngle());
+}
+
+float getRoundedAmplitude(double aAngle) {
+  return roundPrecision(getAmplitude(aAngle), ourConfig.amplitudePrecision);
 }
 
 float getRoundedAmplitude() {
-  return roundPrecision(getAmplitude(getAngle()), ourConfig.amplitudePrecision);
+  return getRoundedAmplitude(getAngle());
 }
 
 float getRudderAmplitude() {
@@ -564,25 +618,19 @@ void flightPhaseMeasure(boolean aStart) {
 void moveServo() {
   int16_t pos = get_pwm_value();
   if (ourServoDirection == -1 ) {
-    pos = -pos 
-      +  (ourConfig.servoPulseWidthPairFullRange[MIN_IDX] 
+    pos = -pos
+      +  (ourConfig.servoPulseWidthPairFullRange[MIN_IDX]
       +   ourConfig.servoPulseWidthPairFullRange[MAX_IDX] );
-  } 
-  // Serial.print("moveServo: ");
-  // Serial.println(pos);
+  }
   ourServo.writeMicroseconds(pos);
 }
 
 int16_t toPercentage(int16_t aMicroSeconds) {
-  // Serial.print(" toPercentage: ");
-  // Serial.print(aMicroSeconds);
-  // Serial.print(" return: ");
   int16_t retVal;
   retVal = map(aMicroSeconds,
     ourConfig.servoPulseWidthPair100Percent[MIN_IDX],
     ourConfig.servoPulseWidthPair100Percent[MAX_IDX],
     -100, +100);
-  // Serial.println(retVal);
   return retVal;
 }
 
@@ -595,7 +643,6 @@ int16_t toMicroSeconds(int16_t aPercent) {
     -100, +100,
     ourConfig.servoPulseWidthPair100Percent[MIN_IDX],
     ourConfig.servoPulseWidthPair100Percent[MAX_IDX]);
-  // Serial.println(retVal);
   return retVal;
 }
 
@@ -604,14 +651,11 @@ int16_t get_percent_value(int16_t aPWMValue) {
 }
 
 int16_t get_percent_value() {
-  // Serial.println(" get_percent_value: ");
   return get_percent_value(get_pwm_value());
 }
 
 void set_percent_value(int16_t aPercentValue) {
   set_pwm_value(toMicroSeconds(aPercentValue));
-  // Serial.print(" set_percent_value: ");
-  // showServoPos();
 }
 
 int16_t get_pwm_value() {
@@ -646,11 +690,6 @@ void set_pwm_value(int16_t aValue) {
     ourServoPos = aValue;
   }
   #ifdef DO_LOG
-  Serial.print(" set_pwm_value: ");
-  Serial.print(aValue);
-  Serial.print("/");
-  Serial.println(ourServoPos);
-  Serial.print(" set_pwm_value: ");
   showServoPos();
   #endif
 }
@@ -659,7 +698,9 @@ void set_pwm_value(int16_t aValue) {
 void showServoPos() {
   Serial.print(" servo pos: ");
   Serial.print(get_pwm_value());
-  Serial.print("us");
+  Serial.print("us, ");
+  Serial.print(get_percent_value());
+  Serial.print("%");
   Serial.println();
 }
 
@@ -672,6 +713,9 @@ void storePreset(uint8_t aNum){
   int servoPresets[CONFIG_SERVO_PRESET_L];
   if (aNum < CONFIG_SERVO_PRESET_L) {
     ourConfig.servoPresets[aNum] = get_pwm_value();
+    Serial.print(ourConfig.servoPresets[aNum]);
+    ourProtocolData.currentPresetAngles[aNum] = getAngle();
+    Serial.print("/");
     Serial.print(ourConfig.servoPresets[aNum]);
   }
   Serial.println();
@@ -701,6 +745,7 @@ void loadPreset(uint8_t aNum) {
 void setPresetInPercent(uint8_t aNum, uint16_t aPercent) {
   if (aNum < CONFIG_SERVO_PRESET_L) {
     ourConfig.servoPresets[aNum] = toMicroSeconds(aPercent);
+    ourProtocolData.currentPresetAngles[aNum] = getRoundedAngle();
   }
 }
 /**
@@ -731,6 +776,7 @@ void setupWebServer() {
   server.on("/servoPage",htmlServoPage);
   server.on("/angleSensorPage",htmlAngleSensorPage);
   server.on("/multiToolPage",htmlMultiToolPage);
+  server.on("/showProtocolTable",htmlShowProtocolTable);
   server.on("/styles.css",cssStylesPage);
   server.on("/script.js",jsScriptPage);
   server.on("/getDataReq",getDataReq);
@@ -764,6 +810,80 @@ void htmlMultiToolPage() {
   Serial.println(" : htmlMultiToolPage()");
   checkHTMLArguments();
   server.send(200, "text/html", FPSTR(MULTI_TOOL_page)); //Send web page
+}
+
+void htmlShowProtocolTable() {
+  Serial.print(server.client().remoteIP().toString());
+  Serial.println(" : htmlShowProtocolTable()");
+  checkHTMLArguments();
+  String s = FPSTR(SHOW_PROTO_TABLE_page); //Read HTML contents
+  String table;
+  table.concat("<table id='protodata'>");
+  table.concat("<tr>");
+  table.concat("<th>"); table.concat("</th>");
+  table.concat("<th colspan=2>"); table.concat("</th>");
+  for (int i=0; i<CONFIG_SERVO_PRESET_L; i++) {
+  table.concat("<th colspan=4>"); table.concat(String("Pos-")+(i+1)); table.concat("</th>");
+  }
+  table.concat("<th>"); table.concat("</th>");
+  table.concat("</tr>\n");
+  table.concat("<tr>");
+  table.concat("<th>"); table.concat("</th>");
+  table.concat("<th colspan=2>"); table.concat("Limit"); table.concat("</th>");
+  for (int i=0; i<CONFIG_SERVO_PRESET_L; i++) {
+  table.concat("<th colspan=2>"); table.concat("Servo"); table.concat("</th>");
+  table.concat("<th>"); table.concat("Winkel"); table.concat("</th>");
+  table.concat("<th>"); table.concat("Ruder"); table.concat("</th>");
+  }
+  table.concat("<th>"); table.concat("Rudertiefe"); table.concat("</th>");
+  table.concat("</tr>\n");
+  table.concat("<tr>");
+  table.concat("<th>"); table.concat("Beschreibung"); table.concat("</th>");
+  table.concat("<th>"); table.concat("min."); table.concat("</th>");
+  table.concat("<th>"); table.concat("max."); table.concat("</th>");
+#ifdef SERVOPOS
+  table.concat("<th>"); table.concat("Servo Pos in %/&micro;s"); table.concat("</th>");
+#else
+  for (int i=0; i<CONFIG_SERVO_PRESET_L; i++) {
+    table.concat("<th>"); table.concat("%"); table.concat("</th>");
+    table.concat("<th>"); table.concat("&micro;s"); table.concat("</th>");
+    table.concat("<th>"); table.concat("°"); table.concat("</th>");
+    table.concat("<th>"); table.concat("mm"); table.concat("</th>");
+  }
+#endif
+  table.concat("<th>"); table.concat("in mm"); table.concat("</th>");
+  table.concat("</tr>\n");
+  for (int i=0; i < ourProtocolData.dataSetIdxUnused; i++) {
+    table.concat("<tr>");
+    servoDataSet_t *dataSet = &ourProtocolData.dataSets[i];
+    table.concat("<td>"); table.concat(dataSet->descr); table.concat("</td>");
+    table.concat("<td>"); table.concat(dataSet->limitLow); table.concat("</td>");
+    table.concat("<td>"); table.concat(dataSet->limitHigh); table.concat("</td>");
+#ifdef SERVOPOS
+    table.concat("<td>"); table.concat(get_percent_value(dataSet->servoPos));table.concat("/"); table.concat(dataSet->servoPos); table.concat("</td>");
+#else
+    for (int j=0; j<CONFIG_SERVO_PRESET_L; j++) {
+      int theServoPos = dataSet->servoPresets[j];
+      float theAngle = dataSet->presetAngles[j];
+      if (theAngle == ANGLE_UNSET_VAL) {
+        table.concat("<td>"); table.concat("-"); table.concat("</td>");
+        table.concat("<td>"); table.concat("-"); table.concat("</td>");
+        table.concat("<td>"); table.concat("-"); table.concat("</td>");
+        table.concat("<td>"); table.concat("-"); table.concat("</td>");
+      } else {
+        table.concat("<td>"); table.concat(get_percent_value(theServoPos)); table.concat("</td>");
+        table.concat("<td>"); table.concat(theServoPos); table.concat("</td>");
+        table.concat("<td>"); table.concat(getRoundedAngle(theAngle)); table.concat("</td>");
+        table.concat("<td>"); table.concat(getRoundedAmplitude(theAngle)); table.concat("</td>");
+      }
+    }
+#endif
+    table.concat("<td>"); table.concat(dataSet->rudderSize); table.concat("</td>");
+    table.concat("</tr>\n");
+  }
+  table.concat("</table>");
+  s.replace("###<TABLE>###", table);
+  server.send(200, "text/html", s); //Send web page
 }
 
 void htmlMenuPage() {
@@ -819,9 +939,40 @@ String createDynValueResponse(String aIdForcingValue) {
   return result;
 }
 
+void setProtocolDataSet(uint8_t aIdx) {
+  servoDataSet_t *dataSet = &ourProtocolData.dataSets[aIdx];
+  dataSet->descr = ourProtocolData.datasetDescription;
+  for (int i=0; i<CONFIG_SERVO_PRESET_L; i++) {
+    dataSet->servoPresets[i] = ourConfig.servoPresets[i];
+    dataSet->presetAngles[i] = ourProtocolData.currentPresetAngles[i];
+  }
+  dataSet->servoPos = get_pwm_value();
+  dataSet->rudderSize = ourRudderSize;
+  dataSet->angle = getRoundedAngle();
+  dataSet->limitLow = ourServoLimit[MIN_IDX];
+  dataSet->limitHigh = ourServoLimit[MAX_IDX];
+}
+
+void setProtocolData() {
+  Serial.print("setProtocolData:");
+  Serial.print(ourProtocolData.dataSetIdxUnused);
+  Serial.print("/");
+  Serial.print(ourProtocolData.datasetDescription);
+  Serial.println();
+
+  for (int i=0; i < ourProtocolData.dataSetIdxUnused; i++) {
+    if (ourProtocolData.datasetDescription.equals(ourProtocolData.dataSets[i].descr)) {
+      setProtocolDataSet(i);
+      return;
+    }
+  }
+  setProtocolDataSet(ourProtocolData.dataSetIdxUnused);
+  ourProtocolData.dataSetIdxUnused++;
+  return;
+}
+
+
 void setDataReq() {
-  Serial.print(server.client().remoteIP().toString());
-  Serial.println(" : setDataReq()");
   String name = server.arg("name");
   String value = server.arg("value");
   #ifdef DO_LOG
@@ -833,7 +984,7 @@ void setDataReq() {
 
   String response = "";
   int htmlResponseCode=200; // OK
-  
+
   // general settings stuff
   if (name == "cmd_saveConfig") {
     saveConfig();
@@ -889,9 +1040,9 @@ void setDataReq() {
       flightPhaseMeasure(false);
     }
   } else
-  if ( name == "id_rudderDepth") {
-    ourRudderDepth = double(atoi(value.c_str()))/10;
-    Serial.println("setting rudderdepth: " + String(ourRudderDepth));
+  if ( name == "id_rudderSize") {
+    ourRudderSize = double(atoi(value.c_str()))/10;
+    Serial.println("setting rudderSize: " + String(ourRudderSize));
   } else
   if ( name == "id_invertAngle") {
     if (value == "true") {
@@ -1048,6 +1199,16 @@ void setDataReq() {
     loadPreset(pos-1);
     response += createDynValueResponse(name);
   } else
+  if ( name.equals("id_dataset_descr")) {
+    ourProtocolData.datasetDescription = value;
+  } else
+  if ( name.equals("cmd_dataset_init")) {
+    Serial.println("cmd_dataset_init");
+    ourProtocolData.dataSetIdxUnused=0;
+  } else
+  if ( name.equals("cmd_dataset")) {
+    setProtocolData();
+  } else
   if ( name.startsWith("id_rcvendor_")) {
     if (value.equals("Jeti")) {
       ourConfig.servoRangeByVendor = jeti;
@@ -1089,7 +1250,7 @@ void setDataReq() {
     } else
     if ( name.equals("id_pulse_width_p100")) {
       ourConfig.servoPulseWidthPair100Percent[MAX_IDX] = value.toInt();
-    } else 
+    } else
     {
       Serial.print("ERROR: unknown name of set request: ");
       Serial.println(name);
@@ -1109,13 +1270,13 @@ void setDataReq() {
 
 void getDataReq() {
   // Serial.print(server.client().remoteIP().toString());
-  #ifdef DO_LOG
+  #ifdef DO_LOG_GET_DQ
   Serial.print(" : getDataReq() :");
   #endif
   String response;
   for (uint8_t i=0; i<server.args(); i++){
     String argName = server.argName(i);
-    #ifdef DO_LOG
+    #ifdef DO_LOG_GET_DQ
     Serial.println("arg :"+argName);
     #endif
 
@@ -1179,8 +1340,8 @@ void getDataReq() {
         response += String("id_ruddermax" ) + "=" + String(ourMaxAmpl) + ";";
       }
     } else
-    if (argName.equals("id_rudderDepth")) {
-      response += argName + "=" + ourRudderDepth + ";";
+    if (argName.equals("id_rudderSize")) {
+      response += argName + "=" + ourRudderSize + ";";
     } else
     if (argName.equals("id_sensortype")) {
       response += argName + "=" + ourSensorTypeName + ";";
@@ -1332,10 +1493,15 @@ void getDataReq() {
       String vendor = getVendorString(ourConfig.servoRangeByVendor);
       response += argName + "=" + vendor + ";";
     } else
+    if (argName.equals("id_rcvendor")) {
+      String vendor = getVendorString(ourConfig.servoRangeByVendor);
+      vendor.toLowerCase();
+      response += argName+"_"+vendor + "=" + "checked;";
+    } else
     if (argName.startsWith("id_rcvendor_")) {
       String vendor = getVendorString(ourConfig.servoRangeByVendor);
       vendor.toLowerCase();
-      response += argName+vendor + "=" + "checked;";
+      response += "id_rcvendor_"+vendor + "=" + "checked;";
     } else
     if (argName.equals("id_servo_direction")) {
       if (ourServoDirection == -1) {
@@ -1353,13 +1519,16 @@ void getDataReq() {
     } else
     if (argName.equals("id_wheel_factor")) {
       response += argName + "=" + String(ourWheelFactor) + ";";
-    } else 
+    } else
+    if (argName.equals("id_dataset_descr")) {
+      response += argName + "=" + ourProtocolData.datasetDescription + ";";
+    } else
     {
       Serial.print("ERROR: unknown name of get request: ");
       Serial.println(argName);
     }
   }
-  #ifdef DO_LOG
+  #ifdef DO_LOG_GET_DQ
   Serial.println();
   Serial.print("response:");
   Serial.println(response);
@@ -1480,8 +1649,8 @@ void printMPU6050Offsets() {
    Serial.print("]");
    Serial.println();
 }
-void detectSensor() {
 
+void detectSensor() {
   // supported I2C HW connection schemas
   #define I2C_CONNECTIONS_SIZE 2
   uint8_t cableConnections[2][2] = {
@@ -1492,7 +1661,10 @@ void detectSensor() {
   // supported I2C devices / addresses
   #define I2C_ADDR_SIZE 4
   uint8_t I2CAddresses[I2C_ADDR_SIZE] = {
-    MPU6050ADDR1, MPU6050ADDR2, MMA8451ADDR1, MMA8451ADDR2,
+    MPU6050ADDR1, MPU6050ADDR2, 
+#ifdef SUPPORT_MMA8451
+    MMA8451ADDR1, MMA8451ADDR2,
+#endif
   };
 
 
@@ -1510,9 +1682,11 @@ void detectSensor() {
         if (isI2C_MPU6050Addr()) {
           ourSensorTypeName = "MPU-6050/GY521";
         }
+#ifdef SUPPORT_MMA8451
         if (isI2C_MMA8451Addr()) {
           ourSensorTypeName = "MMA-8451";
         }
+#endif
         Serial.print("Sensor [");
         Serial.print(ourSensorTypeName);
         Serial.print("] found at I2C pins ");
@@ -1529,6 +1703,7 @@ void detectSensor() {
 }
 
 
+#ifdef SUPPORT_MMA8451
 boolean isI2C_MMA8451Addr() {
   boolean retVal = false;
   if (ourI2CAddr == MMA8451ADDR1 || ourI2CAddr == MMA8451ADDR2 ) {
@@ -1536,6 +1711,7 @@ boolean isI2C_MMA8451Addr() {
   }
   return retVal;
 }
+#endif
 
 boolean isI2C_MPU6050Addr() {
   boolean retVal = false;
@@ -1545,6 +1721,7 @@ boolean isI2C_MPU6050Addr() {
   return retVal;
 }
 
+#ifdef SUPPORT_MMA8451
 void initMMA8451() {
   Serial.println("initializing MMA8451 device");
   mma = Adafruit_MMA8451();
@@ -1559,6 +1736,7 @@ void initMMA8451() {
   }
   mma.setRange(MMA8451_RANGE_2_G);
 }
+#endif
 
 void initMPU6050() {
   #ifdef USE_MPU6050_MPU
@@ -1860,9 +2038,9 @@ void loadConfig() {
   EEPROM.end();
   // config was never written to EEPROM, so set the default config data and save it to EEPROM
   if ( String(CONFIG_VERSION) == ourConfig.version ) {
-     // ok do nothing, this is the expected version 
+     // ok do nothing, this is the expected version
   } else if (String("RSV1") == ourConfig.version ) {
-     // ok do nothing, this is the expected version 
+     // ok do nothing, this is the expected version
     Serial.print("old but compatible config version found: ");
     Serial.println(ourConfig.version);
   } else {

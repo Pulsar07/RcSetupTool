@@ -56,6 +56,35 @@ button:hover {
   background-color: #99f;
 }
 
+button.protocol {
+  width: 12em;
+}
+
+table {
+  table-layout: auto;
+  border-collapse: collapse;
+  font-size: .9em;
+  width: 100%;
+} 
+
+#protodata td, #protodata th {
+  overflow:visible;
+  border: 1px solid #ddd;
+  padding: 8px;
+}
+
+#protodata tr:nth-child(even){background-color: #f2f2f2;}
+
+#protodata tr:hover {background-color: #ddd;}
+
+#protodata th {
+  padding-top: 12px;
+  padding-bottom: 12px;
+  text-align: left;
+  background-color: #4CAF50;
+  color: white;
+}
+
 .container {
   border-radius: 5px;
   background-color: #f2f2f2;
@@ -165,14 +194,12 @@ button:hover {
   width: 25%;
 }
 
-
 .row {
   background-color: #fff;
   margin: 5px 0px 5px 0px;
 }
 
 .row:after {
- /*  margin: 2px */
   content: "";
   display: table;
   clear: both;
