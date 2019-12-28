@@ -37,7 +37,8 @@
 // V0.10 : full functional initial version
 //         merge of ServoController and RuderwegMesssensor
 // V0.11 : protocol page to multiToolPage added and some bug fixes
-#define APP_VERSION "V0.11"
+// V0.12 : some small beautifications
+#define APP_VERSION "V0.12"
 
 /**
  * \file RcSetupTool.ino

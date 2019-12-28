@@ -138,7 +138,7 @@ const char ANGLE_SENSOR_page[] PROGMEM = R"=====(
     </div>
   </div>
   </div class="container">
-  <br><br><a href="https://github.com/Pulsar07/RC-Einstell-Tool">Projektseite auf GitHub</a>
+  <br><br><a href="https://github.com/Pulsar07/RcSetupTool">Projektseite auf GitHub</a>
   <script>
    a=new AudioContext()
     function beep(vol, freq, duration){

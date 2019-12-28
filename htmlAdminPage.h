@@ -351,6 +351,7 @@ const char ADMIN_page[] PROGMEM = R"=====(
      muss auf jeden Fall "Speichern" geklickt werden.
     </p>
    </div>
+  <br><br><a href="https://github.com/Pulsar07/RcSetupTool">Projektseite auf GitHub</a>
   </div>
   
   <script>
@@ -390,7 +391,6 @@ const char ADMIN_page[] PROGMEM = R"=====(
      "id_apActive",
      "id_wlanConnetion",
      "id_rcvendor",
-     "id_rainer",
      "id_pulse_width_min",
      "id_pulse_width_max",
      "id_pulse_width_n100",

@@ -168,7 +168,7 @@ const char SERVO_page[] PROGMEM = R"=====(
     </div>
   </div>
   </div class="container">
-  <br><br><a href="https://github.com/Pulsar07/RC-Einstell-Tool">Projektseite auf GitHub</a>
+  <br><br><a href="https://github.com/Pulsar07/RcSetupTool">Projektseite auf GitHub</a>
   <script>
 
    getData("id_pwm_value", "id_percent_value", "id_pwm_setvalue", "id_percent_setvalue", 

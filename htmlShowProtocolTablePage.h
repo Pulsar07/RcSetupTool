@@ -12,14 +12,14 @@ const char SHOW_PROTO_TABLE_page[] PROGMEM = R"=====(
   <meta name="viewport" content="width=device-width">
   <!-- <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimum-scale=1.0, maximum-scale=1.0"> -->
   <link rel="icon" href="#" />
-  <title>RC-Einstelltool</title>
+  <title>RC-Einstell-Tool</title>
   <link rel="stylesheet" href="./styles.css">
   <script type="text/javascript" src="./script.js"></script>
  </head>
  <body id="id_body">
   <div class="container">
    <div class="row">
-    <div class="col-appname">RC-Einstelltool:</div>
+    <div class="col-appname">RC-Einstell-Tool:</div>
     <div class="col-version">Version: <span id="id_version">0.00</span></div>
    </div>
   </div>
@@ -37,6 +37,7 @@ const char SHOW_PROTO_TABLE_page[] PROGMEM = R"=====(
      <button type="button" id="id_dataset" name="cmd_dataset_init" value="true"
       onclick="sendNameValue(this.name, this.value); back();">lösche Protokoll</button>
    </div>
+   <br><br><a href="https://github.com/Pulsar07/RcSetupTool">Projektseite auf GitHub</a>
  </body>
  <script>
   function back() {

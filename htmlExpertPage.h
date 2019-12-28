@@ -103,6 +103,7 @@ const char EXPERT_page[] PROGMEM = R"=====(
      </div>
     </div>
    </div>
+   <br><br><a href="https://github.com/Pulsar07/RcSetupTool">Projektseite auf GitHub</a>
   </div>
 
   <script>
