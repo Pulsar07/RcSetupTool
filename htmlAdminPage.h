@@ -33,7 +33,8 @@ const char ADMIN_page[] PROGMEM = R"=====(
     <div class="row">
      <div class="col-setting-values">
       <input type="text" id="id_wlanSsid" name="ssid"
-       onchange="sendNameValue(this.id, this.value)" placeholder="WLAN SSID">
+       maxlength="15"
+       onchange="sendNameAsciiValue(this.id, this.value)" placeholder="WLAN SSID">
      </div>
      <div class="col-setting-descr">
       <label for="ssid">WLAN - SSID (max. 15 Zeichen)</label>
@@ -42,7 +43,8 @@ const char ADMIN_page[] PROGMEM = R"=====(
     <div class="row">
      <div class="col-setting-values">
       <input type="text" id="id_wlanPasswd" name="password"
-       onchange="sendNameValue(this.id, this.value)" placeholder="WLAN Passwort">
+       maxlength="63"
+       onchange="sendNameAsciiValue(this.id, this.value)" placeholder="WLAN Passwort">
      </div>
      <div class="col-setting-descr">
       <label for="password">WLAN - Passwort (max. 63 Zeichen) </label>
@@ -62,16 +64,18 @@ const char ADMIN_page[] PROGMEM = R"=====(
     <div class="row">
      <div class="col-setting-values">
       <input type="text" id="id_apSsid" name="apssid"
-       onchange="sendNameValue(this.id, this.value)" placeholder="AccessPoint SSID">
+       maxlength="15"
+       onchange="sendNameAsciiValue(this.id, this.value)" placeholder="AccessPoint SSID">
      </div>
      <div class="col-setting-descr">
-      <label for="id_apSsid">AccesPoint - SSID (max. 15 Zeichen)</label>
+      <label for="id_apSsid">AccessPoint - SSID (max. 15 Zeichen)</label>
      </div>
     </div>
     <div class="row">
      <div class="col-setting-values">
       <input type="text" id="id_apPasswd" name="id_apPasswd"
-       onchange="sendNameValue(this.id, this.value)" placeholder="AccessPoint Passwort">
+       maxlength="63"
+       onchange="sendNameAsciiValue(this.id, this.value)" placeholder="AccessPoint Passwort">
      </div>
      <div class="col-setting-descr">
       <label for="id_apPasswd">

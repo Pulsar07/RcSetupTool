@@ -57,7 +57,8 @@ Hier ein paar Links:
 Als Messsensor wird der GY-521/MPU-6050 benutzt. Die Genauigkeit liegt
 nach Kalibrierung bei Winkeln bis +/- 45° kleiner als 0.5°. Der Baustein
 MPU-6050 wird von einer wirklich sehr gut gemachten Libs von J.Rowberg
-unterstützt (siehe Link)
+unterstützt (siehe Link) Der Aufbau sollte auch ohne den Winkelsensor
+funktionieren, um nur die Funktion des Servo-Controllers zu erhalten.
 
 Hier ein paar
     Links:
@@ -65,6 +66,12 @@ Hier ein paar
   - <https://www.invensense.com/wp-content/uploads/2015/02/MPU-6000-Datasheet1.pdf>
   - <https://www.az-delivery.de/products/gy-521-6-achsen-gyroskop-und-beschleunigungssensor>
   - <https://github.com/jrowberg/i2cdevlib/tree/master/Arduino/MPU6050>
+
+## <span id="hardware_subsec_de_sc" class="anchor"></span> Servo-Controller
+
+Für den Servo-Controller ist außer dem Signal-Kabel vom D7-Pin des
+Microcontrollers keinerlei Hardware notwendig. Will man nur einen
+Winkelmesser bauen, kann dieses Kabel einfach weggelassen werden.
 
 ## <span id="hardware_subsec_de_sp" class="anchor"></span> Schaltplan
 

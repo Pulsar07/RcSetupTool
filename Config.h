@@ -8,6 +8,7 @@
 #define CONFIG_SSID_L 16
 #define CONFIG_PASSW_L 64
 #define CONFIG_SERVO_PRESET_L 5
+#define CONFIG_SERVO_PRESET_MAX 3 
 
 #define MIN_IDX 0
 #define MAX_IDX 1

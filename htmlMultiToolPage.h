@@ -16,7 +16,7 @@ const char MULTI_TOOL_page[] PROGMEM = R"=====(
   <link rel="stylesheet" href="./styles.css">
   <script type="text/javascript" src="./script.js"></script>
  </head>
- <body id="id_body">
+ <body id="id_body" oncontextmenu="return false">
   <div class="container">
    <div class="row">
     <div class="col-appname">RC-Einstell-Tool:</div>
@@ -29,7 +29,7 @@ const char MULTI_TOOL_page[] PROGMEM = R"=====(
   <div class="container">
    <div class="row">
     <div class="col-declaration">
-     <label>Ruder&shy;tiefe/<wbr>Tara :</label>
+     <label>Tara<wbr>/Ruder&shy;tiefe :</label>
     </div>
     <div class="col-half">
      <button type="button" id="id_tara" name="cmd_taraAngle" value="true"
@@ -93,58 +93,89 @@ const char MULTI_TOOL_page[] PROGMEM = R"=====(
    </div>
    <div class="row">
     <div class="col-declaration">
-     <label for="id_start">Setze Position :</label>
+     <div class="label_grp" >
+      <label for="id_start">Setze Servo-Pos :</label>
+      <label for="id_start">Store Servo-Pos :</label>
+     </div>
     </div>
-    <div class="col-full">
-     <a class="c_button limiter" id="id_toggle_min" name="cmd_limit" 
+    <div class="col-full"> 
+     <div class="c_button_grp" >
+      <a class="c_button limiter tooltip" id="id_toggle_min" name="cmd_limit"
        onclick="sendNameValue(this.name, this.id)">
-       <span id=id_limit_min>-Limit</span></a>
-     <a class="c_button store" id="id_load_1" name="cmd_load_1" 
-       onclick="sendNameValue(this.name, this.value)">
-       <span id=id_load_pos_1>-100</span>%</a>
-     <a class="c_button store" id="id_load_2" name="cmd_load_2"
-       onclick="sendNameValue(this.name, this.value)">
-       <span id=id_load_pos_2>-50</span>%</a>
-     <a class="c_button store" id="id_load_3" name="cmd_load_3"
-       onclick="sendNameValue(this.name, this.value)">
-       <span id=id_load_pos_3>0</span>%</a>
-     <a class="c_button store" id="id_load_4" name="cmd_load_4"
-       onclick="sendNameValue(this.name, this.value)">
-       <span id=id_load_pos_4>50</span>%</a>
-     <a class="c_button store" id="id_load_5" name="cmd_load_5"
-       onclick="sendNameValue(this.name, this.value)">
-       <span id=id_load_pos_5>100</span>%</a>
-     <a class="c_button limiter" id="id_toggle_max" name="cmd_limit" 
+       <span id="id_btn_set_limit_min">-</span>
+      </a>
+      <a class="c_button store_servo" id="id_set_min" name="cmd_limit"
        onclick="sendNameValue(this.name, this.id)">
-       <span id=id_limit_max>+Limit</span></a>
+       <span id="id_btn_store_limit_min">limit</span>
+      </a>
+     </div>
+     <div class="c_button_grp" >
+      <a class="c_button set_servo tooltip" id="id_set_pos_0" name="cmd_set_servo_pos"
+       onclick="sendNameValue(this.name, this.id)">
+       <span id="id_btn_set_pos_0">-100</span>%
+      </a>
+      <a class="c_button store_servo" id="id_store_pos_0" name="cmd_store_servo_pos"
+       onclick="sendNameValue(this.name, this.id)">
+       <span id="id_btn_store_pos_0">-</span>
+      </a>
+     </div>
+     <div class="c_button_grp" >
+      <a class="c_button set_servo tooltip" id="id_set_pos_1" name="cmd_set_servo_pos"
+       onclick="sendNameValue(this.name, this.id)">
+       <span id="id_btn_set_pos_1">0</span>%
+      </a>
+      <a class="c_button store_servo" id="id_store_pos_1" name="cmd_store_servo_pos"
+       onclick="sendNameValue(this.name, this.id)">
+       <span id="id_btn_store_pos_1">-</span>
+      </a>
+     </div>
+     <div class="c_button_grp" >
+      <a class="c_button set_servo tooltip" id="id_set_pos_2" name="cmd_set_servo_pos"
+       onclick="sendNameValue(this.name, this.id)">
+       <span id="id_btn_set_pos_2">+100</span>%
+      </a>
+      <a class="c_button store_servo" id="id_store_pos_2" name="cmd_store_servo_pos"
+       onclick="sendNameValue(this.name, this.id)">
+       <span id="id_btn_store_pos_2">-</span>
+      </a>
+     </div>
+     <div class="c_button_grp" >
+      <a class="c_button limiter tooltip" id="id_toggle_max" name="cmd_limit"
+       onclick="sendNameValue(this.name, this.id)">
+       <span id="id_btn_set_limit_max">+</span>
+      </a>
+      <a class="c_button store_servo" id="id_set_max" name="cmd_limit"
+       onclick="sendNameValue(this.name, this.id)">
+       <span id="id_btn_store_limit_max">limit</span>
+      </a>
+     </div>
     </div>
    </div>
    <div class="row">
     <div class="col-declaration">
-     <label for="id_start">Position über&shy;nehmen :</label>
+     <label>Servo-Definition :</label>
     </div>
     <div class="col-full">
-     <a class="c_button set" id="id_set_min" name="cmd_limit" 
-       onclick="sendNameValue(this.name, this.id)">Set</a>
-     <a class="c_button set" id="id_store_1" name="cmd_store_1"
-       onclick="sendNameValue(this.id, this.name)">Set</a>
-     <a class="c_button set" id="id_store_2" name="cmd_store_2"
-       onclick="sendNameValue(this.id, this.name)">Set</a>
-     <a class="c_button set" id="id_store_3" name="cmd_store_3"
-       onclick="sendNameValue(this.id, this.name)">Set</a>
-     <a class="c_button set" id="id_store_4" name="cmd_store_4"
-       onclick="sendNameValue(this.id, this.name)">Set</a>
-     <a class="c_button set" id="id_store_5" name="cmd_store_5"
-       onclick="sendNameValue(this.id, this.name)">Set</a>
-     <a class="c_button set" id="id_set_max" name="cmd_limit" 
-       onclick="sendNameValue(this.name, this.id)">Set</a>
-    </div>
-   </div>
-   <div class="row">
-    <div class="col-declaration">
-     <label>Servo-Dreh-Richtung :</label>
-    </div>
-    <div class="col-full">
+      <select id="id_proto_servo_function_def" onchange="sendNameValue(this.id, this.value)">
+       <option value="option_fd_QR-1-L">Querruder-1 links</option>
+       <option value="option_fd_QR-1-R">Querruder-1 rechts</option>
+       <option value="option_fd_QR-2-L">Querruder-2 links</option>
+       <option value="option_fd_QR-2-R">Querruder-2 rechts</option>
+       <option value="option_fd_WK-1-L">Wölkklappe-1 links</option>
+       <option value="option_fd_WK-1-R">Wölkklappe-1 rechts</option>
+       <option value="option_fd_WK-2-L">Wölkklappe-2 links</option>
+       <option value="option_fd_WK-2-R">Wölkklappe-2 rechts</option>
+       <option value="option_fd_VL-L">V-Leitwerk links</option>
+       <option value="option_fd_VL-R">V-Leitwerk rechts</option>
+       <option value="option_fd_SR-1">Seitenruder-1</option>
+       <option value="option_fd_SR-2">Seitenruder-2</option>
+       <option value="option_fd_HR-1">Höhenruder-1</option>
+       <option value="option_fd_HR-2">Höhenruder-2</option>
+       <option value="option_fd_SF-1">Servo-Funktion-1</option>
+       <option value="option_fd_SF-2">Servo-Funktion-2</option>
+       <option value="option_fd_SF-3">Servo-Funktion-3</option>
+       <option value="option_fd_SF-4">Servo-Funktion-4</option>
+     </select>
      <label>
        <input type="checkbox" id="id_servo_direction" checked="false"
          onchange="sendNameValue(this.id, this.checked)"> invertiere Servolaufrichtung
@@ -188,7 +219,7 @@ const char MULTI_TOOL_page[] PROGMEM = R"=====(
     </div>
     <div class="col-full">
      <button type="button" class="protocol" id="id_dataset" name="cmd_dataset" value="true"
-      onclick="sendNameValue(this.name, this.value)">Setze Wert</button>
+      onclick="sendNameValue(this.name, this.value)">speichere Datensatz</button>
      <input type="text" class=mmeasureInput id="id_dataset_descr" onchange="sendNameValue(this.id, this.value)"
       style="width: 20em" maxlength="100" placeholder="Beschreibung des Datensatzes"></input>
      <button type="button" class="protocol" onclick="window.location.href='/showProtocolTable'">zeige Protokoll</button>
@@ -214,15 +245,18 @@ const char MULTI_TOOL_page[] PROGMEM = R"=====(
  
   getData(
     "id_rudderSize", "id_amplitudeValue", "id_angleValue",
+    "id_proto_servo_function_def",
     "id_pwm_value", "id_percent_value", "id_pwm_setvalue", "id_percent_setvalue", 
     "id_pos_slider", "id_servo_direction",
-    "id_load_pos_1", "id_load_pos_2", "id_load_pos_3", "id_load_pos_4", "id_load_pos_5",
-    "id_limit_min", "id_limit_max",
+    "id_btn_set_pos_0", "id_btn_set_pos_1", "id_btn_set_pos_2",
+    "id_btn_store_pos_0", "id_btn_store_pos_1", "id_btn_store_pos_2",
+    "id_btn_store_limit_min", "id_btn_set_limit_min", "id_btn_store_limit_max", "id_btn_set_limit_max",
     "id_pulse_width_min", "id_pulse_width_max", "id_pulse_width_p100", "id_pulse_width_n100", 
     "id_dataset_descr",
     "id_wheel_activate", "id_wheel_factor",
     "id_vendor_settings", "id_version"
   );
+
   setInterval(function() {
     // Call a function repetatively 
     getData("id_angleValue", "id_amplitudeValue");
@@ -285,9 +319,56 @@ const char MULTI_TOOL_page[] PROGMEM = R"=====(
       context.strokeStyle = '#fa4b2a';
       context.stroke();
   }
+
+  function handleClick(aEvt, aEle) {
+    var name = aEle.getAttribute("name");
+    if (name == null) {
+      name = "-";
+    }
+    console.log("handleClick() : " + aEle.id + "/" + name + "/" + aEvt.which);
+    console.log("event() : " + aEvt.type);
+    console.log("nodeName : " + aEvt.target.nodeName);
+    console.log("id : " + aEvt.target.id);
+    if (name.startsWith("tcmd_")) {
+      sendNameValue(name, "-");
+    } else 
+    if (aEvt.target.nodeName === "A") {
+      if (aEvt.type = "mouseup" ) {
+        if ( handleClick.mymousedown == true) {
+          handleClick.mymousedown = false;
+          aEvt.preventDefault(); 
+          aEvt.stopPropagation();
+          if (aEvt.which == 1) {
+            sendNameValue(aEle.id, "left_mouse");
+            // alert("right clicked!: " + this.id);
+          }
+          if (aEvt.which == 2) {
+            sendNameValue(aEle.id, "middle_mouse");
+            // alert("right clicked!: " + this.id);
+          }
+          if (aEvt.which == 3) {
+              sendNameValue(aEle.id, "right_mouse");
+              // alert("right clicked!: " + this.id);
+          }
+        }
+      } else if (aEvt.type == "mousedown") {
+         handleClick.mymousedown = true;
+      }
+    }
+  }
   
    var ongoingTouches = [];
    window.onload = function () {
+    var is_touch_device = 'ontouchstart' in window || navigator.maxTouchPoints;
+    console.log("is_touch_device) : " + is_touch_device);
+    if(is_touch_device ) { // || true) {
+      var x = document.getElementsByClassName("dropdown-content");
+      var i;
+      for (i = 0; i < x.length; i++) {
+        x[i].classList.add("dropdown-touch");
+      }
+    } 
+
     var percentValElement = document.getElementById('id_percent_value');
  
     var someElement = document.getElementById('id_body');
@@ -339,6 +420,7 @@ const char MULTI_TOOL_page[] PROGMEM = R"=====(
  
    drawServoCanvas();
   }
+  
 
  </script>
  </body>

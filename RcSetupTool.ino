@@ -38,7 +38,9 @@
 //         merge of ServoController and RuderwegMesssensor
 // V0.11 : protocol page to multiToolPage added and some bug fixes
 // V0.12 : some small beautifications
-#define APP_VERSION "V0.12"
+// V0.13 : support for all ASCII special chars in SSID and passwords
+//         more enhanced preset and protocol behaviour
+#define APP_VERSION "V0.13"
 
 /**
  * \file RcSetupTool.ino
@@ -81,11 +83,16 @@
  * Als Messsensor wird der GY-521/MPU-6050 benutzt. Die Genauigkeit liegt nach Kalibrierung bei
  * Winkeln bis +/- 45° kleiner als 0.5°. Der Baustein MPU-6050 wird von einer wirklich sehr gut
  * gemachten Libs von J.Rowberg unterstützt (siehe Link)
+ * Der Aufbau sollte auch ohne den Winkelsensor funktionieren, um nur die Funktion des Servo-Controllers zu erhalten.
  *
  * Hier ein paar Links:
  * * https://www.invensense.com/wp-content/uploads/2015/02/MPU-6000-Datasheet1.pdf
  * * https://www.az-delivery.de/products/gy-521-6-achsen-gyroskop-und-beschleunigungssensor
  * * https://github.com/jrowberg/i2cdevlib/tree/master/Arduino/MPU6050
+ *
+ * \subsection hardware_subsec_de_sc Servo-Controller
+ * Für den Servo-Controller ist außer dem Signal-Kabel vom D7-Pin des Microcontrollers keinerlei Hardware notwendig.
+ * Will man nur einen Winkelmesser bauen, kann dieses Kabel einfach weggelassen werden.
  *
  * \subsection hardware_subsec_de_sp Schaltplan
  * Der Schaltplan ist denkbar einfach. Es werden nur 4 Verbindungen zwischen Sensorplatine und
@@ -205,6 +212,9 @@
  */
 
 
+// #define MYSEP €
+// #define MYSEP ";"
+#define MYSEP_STR "~~~"
 const byte DNS_PORT = 53;
 DNSServer ourDNSServer;
 IPAddress ourApIp(192,168,4,1);
@@ -259,23 +269,70 @@ static boolean ourIsMeasureActive=false;
 
 const int SERVO_PIN = D7;
 
+enum { 
+  RD_QR1_L, 
+  RD_QR1_R, 
+  RD_QR2_L, 
+  RD_QR2_R, 
+  RD_WK1_L, 
+  RD_WK1_R, 
+  RD_WK2_L, 
+  RD_WK2_R, 
+  RD_VL_L, 
+  RD_VL_R, 
+  RD_SR_1, 
+  RD_SR_2, 
+  RD_HR_1, 
+  RD_HR_2,
+  RD_SF_1,
+  RD_SF_2,
+  RD_SF_3,
+  RD_SF_4,
+  RD_LAST
+ };
+
+ const char *ourFunctionDefMap[] = {
+        [RD_QR1_L] = "option_fd_QR-1-L",
+        [RD_QR1_R] = "option_fd_QR-1-R",
+        [RD_QR2_L] = "option_fd_QR-2-L",
+        [RD_QR2_R] = "option_fd_QR-2-R",
+        [RD_WK1_L] = "option_fd_WK-1-L",
+        [RD_WK1_R] = "option_fd_WK-1-R",
+        [RD_WK2_L] = "option_fd_WK-2-L",
+        [RD_WK2_R] = "option_fd_WK-2-R",
+        [RD_VL_L]  = "option_fd_VL-L",
+        [RD_VL_R]  = "option_fd_VL-R",
+        [RD_SR_1]  = "option_fd_SR-1",
+        [RD_SR_2]  = "option_fd_SR-2",
+        [RD_HR_1]  = "option_fd_HR-1",
+        [RD_HR_2]  = "option_fd_HR-2",
+        [RD_SF_1]  = "option_fd_SF-1",
+        [RD_SF_2]  = "option_fd_SF-2",
+        [RD_SF_3]  = "option_fd_SF-3",
+        [RD_SF_4]  = "option_fd_SF-4",
+    };
+
 typedef struct {
+  int rudderIdx;
   String descr;
-  int servoPresets[CONFIG_SERVO_PRESET_L];
+  int8_t functionIdx;
+  int servoPresets[CONFIG_SERVO_PRESET_MAX];
   int limitLow;
   int limitHigh;
+  int8_t servoDirection;
   float angle;
   int servoPos;
   float rudderSize;
-  float presetAngles[CONFIG_SERVO_PRESET_L];
+  float presetAngles[CONFIG_SERVO_PRESET_MAX];
 } servoDataSet_t;
 
-#define DATA_SET_IDX_MAX 10
+#define DATA_SET_IDX_MAX RD_LAST
 #define ANGLE_UNSET_VAL 999.0f
 typedef struct {
   String datasetDescription;
+  int8_t currentFunctionIdx=0;
   int8_t dataSetIdxUnused=0;
-  servoDataSet_t dataSets[DATA_SET_IDX_MAX];
+  servoDataSet_t rudderData[DATA_SET_IDX_MAX];
   float currentPresetAngles[CONFIG_SERVO_PRESET_L];
 } protocolData_t;
 
@@ -372,19 +429,29 @@ void initAngleMeasure() {
 }
 
 
+/**
+  set the value of the preset store given by aNum in percent
+*/
+void initPresetInPercent(uint8_t aNum, uint16_t aPercent) {
+  if (aNum < CONFIG_SERVO_PRESET_MAX) {
+    ourConfig.servoPresets[aNum] = toMicroSeconds(aPercent);
+    ourProtocolData.currentPresetAngles[aNum] = ANGLE_UNSET_VAL;
+  }
+}
+
 void initServoControllerConfig() {
 
   if (ourConfig.servoRangeByVendor < 0 || ourConfig.servoRangeByVendor > custom) {
     ourConfig.servoRangeByVendor = jeti;
   }
   initServoRangeSettings(ourConfig.servoRangeByVendor);
-  for (int i=0; i<CONFIG_SERVO_PRESET_L; i++) {
-    setPresetInPercent(i, (-100 + i*50));
+  for (int i=0; i<CONFIG_SERVO_PRESET_MAX; i++) {
+    initPresetInPercent(i, (-100 + i*100));
   }
 }
 
 void initProtocolData() {
-  for (int i=0; i<CONFIG_SERVO_PRESET_L; i++) {
+  for (int i=0; i<CONFIG_SERVO_PRESET_MAX; i++) {
     ourProtocolData.currentPresetAngles[i] = ANGLE_UNSET_VAL;
   }
 }
@@ -400,9 +467,9 @@ void initServo() {
   ourServo.writeMicroseconds(get_pwm_value());
 
   // check and reset servo preset values if not valid initialized
-  for (int i=0; i<CONFIG_SERVO_PRESET_L; i++) {
+  for (int i=0; i<CONFIG_SERVO_PRESET_MAX; i++) {
     if (getPreset(i) < -125 || getPreset(i) > +125) {
-      setPresetInPercent(i, (-100 + i*50));
+      initPresetInPercent(i, (-100 + i*100));
     }
   }
 }
@@ -711,11 +778,10 @@ void showServoPos() {
 */
 void storePreset(uint8_t aNum){
   Serial.print(" storePreset: ");
-  int servoPresets[CONFIG_SERVO_PRESET_L];
-  if (aNum < CONFIG_SERVO_PRESET_L) {
+  if (aNum < CONFIG_SERVO_PRESET_MAX) {
     ourConfig.servoPresets[aNum] = get_pwm_value();
-    Serial.print(ourConfig.servoPresets[aNum]);
     ourProtocolData.currentPresetAngles[aNum] = getAngle();
+    Serial.print(ourConfig.servoPresets[aNum]);
     Serial.print("/");
     Serial.print(ourConfig.servoPresets[aNum]);
   }
@@ -729,7 +795,7 @@ void loadPreset(uint8_t aNum) {
   Serial.print(" loadPreset[");
   Serial.print(aNum);
   Serial.print("]: ");
-  if (aNum < CONFIG_SERVO_PRESET_L) {
+  if (aNum < CONFIG_SERVO_PRESET_MAX) {
     set_pwm_value(getPreset(aNum));
     Serial.print(toPercentage(getPreset(aNum)));
     Serial.print("/");
@@ -741,26 +807,17 @@ void loadPreset(uint8_t aNum) {
 }
 
 /**
-  set the value of the preset store given by aNum in percent
-*/
-void setPresetInPercent(uint8_t aNum, uint16_t aPercent) {
-  if (aNum < CONFIG_SERVO_PRESET_L) {
-    ourConfig.servoPresets[aNum] = toMicroSeconds(aPercent);
-    ourProtocolData.currentPresetAngles[aNum] = getRoundedAngle();
-  }
-}
-/**
   get the value in percent of the preset store given by aNum
 */
 int16_t getPresetInPercent(uint8_t aNum) {
-  return aNum < CONFIG_SERVO_PRESET_L ? toPercentage(getPreset(aNum)) : 0;
+  return aNum < CONFIG_SERVO_PRESET_MAX ? toPercentage(getPreset(aNum)) : 0;
 }
 
 /**
   get the value in us of the preset store given by aNum
 */
 int16_t getPreset(uint8_t aNum) {
-  return aNum < CONFIG_SERVO_PRESET_L ? ourConfig.servoPresets[aNum] : 1500;
+  return aNum < CONFIG_SERVO_PRESET_MAX ? ourConfig.servoPresets[aNum] : 1500;
 }
 
 
@@ -822,48 +879,56 @@ void htmlShowProtocolTable() {
   table.concat("<table id='protodata'>");
   table.concat("<tr>");
   table.concat("<th>"); table.concat("</th>");
-  table.concat("<th colspan=2>"); table.concat("</th>");
-  for (int i=0; i<CONFIG_SERVO_PRESET_L; i++) {
+  table.concat("<th colspan=4>"); table.concat("Limit"); table.concat("</th>");
+  for (int i=0; i<CONFIG_SERVO_PRESET_MAX; i++) {
   table.concat("<th colspan=4>"); table.concat(String("Pos-")+(i+1)); table.concat("</th>");
   }
-  table.concat("<th>"); table.concat("</th>");
+  table.concat("<th colspan=2>"); table.concat("</th>");
   table.concat("</tr>\n");
   table.concat("<tr>");
   table.concat("<th>"); table.concat("</th>");
-  table.concat("<th colspan=2>"); table.concat("Limit"); table.concat("</th>");
-  for (int i=0; i<CONFIG_SERVO_PRESET_L; i++) {
+  table.concat("<th colspan=2>"); table.concat("min."); table.concat("</th>");
+  table.concat("<th colspan=2>"); table.concat("max."); table.concat("</th>");
+  for (int i=0; i<CONFIG_SERVO_PRESET_MAX; i++) {
   table.concat("<th colspan=2>"); table.concat("Servo"); table.concat("</th>");
   table.concat("<th>"); table.concat("Winkel"); table.concat("</th>");
   table.concat("<th>"); table.concat("Ruder"); table.concat("</th>");
   }
+  table.concat("<th>"); table.concat("Invers"); table.concat("</th>");
   table.concat("<th>"); table.concat("Rudertiefe"); table.concat("</th>");
   table.concat("</tr>\n");
   table.concat("<tr>");
-  table.concat("<th>"); table.concat("Beschreibung"); table.concat("</th>");
-  table.concat("<th>"); table.concat("min."); table.concat("</th>");
-  table.concat("<th>"); table.concat("max."); table.concat("</th>");
+  table.concat("<th>"); table.concat("Beschreibung/Funktion"); table.concat("</th>");
+  table.concat("<th>"); table.concat("%"); table.concat("</th>");
+  table.concat("<th>"); table.concat("&micro;s"); table.concat("</th>");
+  table.concat("<th>"); table.concat("%"); table.concat("</th>");
+  table.concat("<th>"); table.concat("&micro;s"); table.concat("</th>");
 #ifdef SERVOPOS
   table.concat("<th>"); table.concat("Servo Pos in %/&micro;s"); table.concat("</th>");
 #else
-  for (int i=0; i<CONFIG_SERVO_PRESET_L; i++) {
+  for (int i=0; i<CONFIG_SERVO_PRESET_MAX; i++) {
     table.concat("<th>"); table.concat("%"); table.concat("</th>");
     table.concat("<th>"); table.concat("&micro;s"); table.concat("</th>");
     table.concat("<th>"); table.concat("°"); table.concat("</th>");
     table.concat("<th>"); table.concat("mm"); table.concat("</th>");
   }
 #endif
+  table.concat("<th>"); table.concat("1/-1"); table.concat("</th>");
   table.concat("<th>"); table.concat("in mm"); table.concat("</th>");
   table.concat("</tr>\n");
   for (int i=0; i < ourProtocolData.dataSetIdxUnused; i++) {
     table.concat("<tr>");
-    servoDataSet_t *dataSet = &ourProtocolData.dataSets[i];
-    table.concat("<td>"); table.concat(dataSet->descr); table.concat("</td>");
+    servoDataSet_t *dataSet = &ourProtocolData.rudderData[i];
+    table.concat("<td>"); table.concat(dataSet->descr); 
+    table.concat("/"); table.concat(servoFunctionIdx2Shortcut(dataSet->functionIdx)); table.concat("</td>");
+    table.concat("<td>"); table.concat(get_percent_value(dataSet->limitLow)); table.concat("</td>");
     table.concat("<td>"); table.concat(dataSet->limitLow); table.concat("</td>");
+    table.concat("<td>"); table.concat(get_percent_value(dataSet->limitHigh)); table.concat("</td>");
     table.concat("<td>"); table.concat(dataSet->limitHigh); table.concat("</td>");
 #ifdef SERVOPOS
     table.concat("<td>"); table.concat(get_percent_value(dataSet->servoPos));table.concat("/"); table.concat(dataSet->servoPos); table.concat("</td>");
 #else
-    for (int j=0; j<CONFIG_SERVO_PRESET_L; j++) {
+    for (int j=0; j<CONFIG_SERVO_PRESET_MAX; j++) {
       int theServoPos = dataSet->servoPresets[j];
       float theAngle = dataSet->presetAngles[j];
       if (theAngle == ANGLE_UNSET_VAL) {
@@ -879,6 +944,7 @@ void htmlShowProtocolTable() {
       }
     }
 #endif
+    table.concat("<td>"); table.concat(dataSet->servoDirection); table.concat("</td>");
     table.concat("<td>"); table.concat(dataSet->rudderSize); table.concat("</td>");
     table.concat("</tr>\n");
   }
@@ -923,52 +989,148 @@ void htmlExpertPage() {
 String createDynValueResponse(String aIdForcingValue) {
   String result = "";
   if (aIdForcingValue != "id_pwm_setvalue") {
-    result += String("id_pwm_setvalue") + "=" + get_pwm_value() + ";";
+    result += String("id_pwm_setvalue") + "=" + get_pwm_value() + MYSEP_STR;
   }
   if (aIdForcingValue != "id_pwm_value") {
-    result += String("id_pwm_value") + "=" + get_pwm_value() + ";";
+    result += String("id_pwm_value") + "=" + get_pwm_value() + MYSEP_STR;
   }
   if (aIdForcingValue != "id_percent_setvalue") {
-    result += String("id_percent_setvalue") + "=" + get_percent_value() + ";";
+    result += String("id_percent_setvalue") + "=" + get_percent_value() + MYSEP_STR;
   }
   if (aIdForcingValue != "id_percent_value") {
-    result += String("id_percent_value") + "=" + get_percent_value() + ";";
+    result += String("id_percent_value") + "=" + get_percent_value() + MYSEP_STR;
   }
   if (aIdForcingValue != "id_pos_slider") {
-    result += String("id_pos_slider") + "=" + get_percent_value() + ";";
+    result += String("id_pos_slider") + "=" + get_percent_value() + MYSEP_STR;
   }
   return result;
 }
 
-void setProtocolDataSet(uint8_t aIdx) {
-  servoDataSet_t *dataSet = &ourProtocolData.dataSets[aIdx];
+void restoreProtocolDataSet(uint8_t aIdx) {
+  int dataSetIdx =  getProtocolDataSetIdx(aIdx);
+
+  if (dataSetIdx == ourProtocolData.dataSetIdxUnused) {
+    Serial.print("setting defaults to protocol data set : ");
+    Serial.println(dataSetIdx);
+    for (int i=0; i<CONFIG_SERVO_PRESET_MAX; i++) {
+      initPresetInPercent(i, (-100 + i*100));
+    }
+    // dataSet->servoPos = get_pwm_value();
+    // ourRudderSize = dataSet->rudderSize = ourRudderSize;
+    // dataSet->angle = getRoundedAngle();
+    ourServoLimit[MIN_IDX] = ourConfig.servoPulseWidthPairFullRange[MIN_IDX];
+    ourServoLimit[MAX_IDX] = ourConfig.servoPulseWidthPairFullRange[MAX_IDX];
+  } else {
+    Serial.print("setting stored values to protocol data set : ");
+    Serial.println(dataSetIdx);
+    servoDataSet_t *dataSet = &ourProtocolData.rudderData[dataSetIdx];
+    ourProtocolData.datasetDescription = dataSet->descr;
+    ourProtocolData.currentFunctionIdx = dataSet->functionIdx;
+  
+    for (int i=0; i<CONFIG_SERVO_PRESET_MAX; i++) {
+      ourConfig.servoPresets[i] = dataSet->servoPresets[i];
+      ourProtocolData.currentPresetAngles[i] = dataSet->presetAngles[i];
+    }
+    // dataSet->servoPos = get_pwm_value();
+    ourRudderSize = dataSet->rudderSize;
+    ourServoDirection = dataSet->servoDirection;
+    dataSet->angle = getRoundedAngle();
+    ourServoLimit[MIN_IDX] = dataSet->limitLow;
+    ourServoLimit[MAX_IDX] = dataSet->limitHigh;
+  }
+}
+
+String getResponse4Presets() {
+  String retVal = "";
+  // preset buttons
+  for (int i=0; i<CONFIG_SERVO_PRESET_MAX; i++) {
+    retVal += getResponse4Preset(i);
+  }
+
+  // limit display
+  retVal += String("id_btn_set_limit_min") + "=" + toPercentage(ourServoLimit[MIN_IDX]) + "%" + MYSEP_STR;
+  retVal += String("id_btn_set_limit_max") + "=" + toPercentage(ourServoLimit[MAX_IDX]) + "%" + MYSEP_STR;
+
+  // limit buttons
+  if ( ourServoLimit[MIN_IDX] == ourConfig.servoPulseWidthPairFullRange[MIN_IDX]) {
+    retVal += String("id_btn_store_limit_min") + "=" + String("limit") + MYSEP_STR;
+  } else {
+    retVal += String("id_btn_store_limit_min") + "=" + String("unlimit") + MYSEP_STR;
+  }
+  if ( ourServoLimit[MAX_IDX] == ourConfig.servoPulseWidthPairFullRange[MAX_IDX]) {
+    retVal += String("id_btn_store_limit_max") + "=" + String("limit") + MYSEP_STR;
+  } else {
+    retVal += String("id_btn_store_limit_max") + "=" + String("unlimit") + MYSEP_STR;
+  }
+
+  // servo direction
+  if (ourServoDirection == -1) {
+    retVal += String("id_servo_direction") + "=" + "checked" + MYSEP_STR;
+  } else {
+    retVal += String("id_servo_direction") + "=" + "unchecked" + MYSEP_STR;
+  }
+  
+  // rudder size
+  retVal += String("id_rudderSize") + "=" + ourRudderSize + MYSEP_STR;
+  return retVal;
+}
+
+String getResponse4Preset(uint8_t aPos) {
+  String retVal = "";
+  if (aPos < CONFIG_SERVO_PRESET_MAX) {
+    retVal += String("id_btn_set_pos_") + String(aPos) + "=" + toPercentage(getPreset(aPos)) + MYSEP_STR;
+    float theAngle = ourProtocolData.currentPresetAngles[aPos];
+    retVal += String("id_btn_store_pos_") + String(aPos) + "="; 
+    if (theAngle == ANGLE_UNSET_VAL) {
+      retVal += String("-") + MYSEP_STR;
+    } else {
+      retVal += String(getRoundedAngle(theAngle), 1)+"&deg;/"+ String(getRoundedAmplitude(theAngle),1)+"mm"+MYSEP_STR;
+    }
+  }
+  return retVal;
+}
+
+void storeProtocolDataSet(uint8_t aIdx) {
+  servoDataSet_t *dataSet = &ourProtocolData.rudderData[aIdx];
   dataSet->descr = ourProtocolData.datasetDescription;
-  for (int i=0; i<CONFIG_SERVO_PRESET_L; i++) {
+  dataSet->functionIdx = ourProtocolData.currentFunctionIdx;
+  for (int i=0; i<CONFIG_SERVO_PRESET_MAX; i++) {
     dataSet->servoPresets[i] = ourConfig.servoPresets[i];
     dataSet->presetAngles[i] = ourProtocolData.currentPresetAngles[i];
   }
   dataSet->servoPos = get_pwm_value();
   dataSet->rudderSize = ourRudderSize;
+  dataSet->servoDirection = ourServoDirection;
   dataSet->angle = getRoundedAngle();
   dataSet->limitLow = ourServoLimit[MIN_IDX];
   dataSet->limitHigh = ourServoLimit[MAX_IDX];
 }
 
-void setProtocolData() {
-  Serial.print("setProtocolData:");
+int getProtocolDataSetIdx(int8_t aFunctionIdx) {
+  for (int i=0; i < ourProtocolData.dataSetIdxUnused; i++) {
+    String currDescr = ourProtocolData.datasetDescription + aFunctionIdx; 
+    String existingDescr = ourProtocolData.rudderData[i].descr + ourProtocolData.rudderData[i].functionIdx;
+    if (currDescr.equals(existingDescr)) {
+      return i;
+    }
+  }
+  return ourProtocolData.dataSetIdxUnused;
+}
+
+void storeProtocolDataSet() {
+  Serial.print("storeProtocolDataSet:");
   Serial.print(ourProtocolData.dataSetIdxUnused);
   Serial.print("/");
   Serial.print(ourProtocolData.datasetDescription);
+  Serial.print("/");
+  Serial.print(servoFunctionIdx2Shortcut(ourProtocolData.currentFunctionIdx));
   Serial.println();
 
-  for (int i=0; i < ourProtocolData.dataSetIdxUnused; i++) {
-    if (ourProtocolData.datasetDescription.equals(ourProtocolData.dataSets[i].descr)) {
-      setProtocolDataSet(i);
-      return;
-    }
+  int dataSetIdx =  getProtocolDataSetIdx(ourProtocolData.currentFunctionIdx);
+  storeProtocolDataSet(dataSetIdx);
+  if (dataSetIdx == ourProtocolData.dataSetIdxUnused) {
+    ourProtocolData.dataSetIdxUnused++;
   }
-  setProtocolDataSet(ourProtocolData.dataSetIdxUnused);
-  ourProtocolData.dataSetIdxUnused++;
   return;
 }
 
@@ -1044,6 +1206,26 @@ void setDataReq() {
   if ( name == "id_rudderSize") {
     ourRudderSize = double(atoi(value.c_str()))/10;
     Serial.println("setting rudderSize: " + String(ourRudderSize));
+  } else
+  if ( name.equals("id_dataset_descr")) {
+    ourProtocolData.datasetDescription = value;
+  } else
+  if ( name.equals("cmd_dataset_init")) {
+    Serial.println("cmd_dataset_init");
+    ourProtocolData.dataSetIdxUnused=0;
+  } else
+  if ( name.equals("cmd_dataset")) {
+    storeProtocolDataSet();
+  } else
+  if ( name == "id_proto_servo_function_def") {
+    ourProtocolData.currentFunctionIdx = servoFunctionDef2Idx(value);
+    Serial.print("setting / restoring currentFunctionIdx: ");
+    Serial.println(ourProtocolData.currentFunctionIdx);
+    restoreProtocolDataSet(ourProtocolData.currentFunctionIdx);
+    response += getResponse4Presets();
+    Serial.print("response: ");
+    Serial.println(response);
+
   } else
   if ( name == "id_invertAngle") {
     if (value == "true") {
@@ -1164,51 +1346,42 @@ void setDataReq() {
   } else
   if ( name.startsWith("cmd_limit")) {
     if ( value.equals("id_set_min")) {
-      ourServoLimit[MIN_IDX] = get_pwm_value();
-      response += String("id_limit_min") + "=" + toPercentage(ourServoLimit[MIN_IDX]) + "%;";
-    } else
-    if ( value.equals("id_set_max")) {
-      ourServoLimit[MAX_IDX] = get_pwm_value();
-      response += String("id_limit_max") + "=" + toPercentage(ourServoLimit[MAX_IDX]) + "%;";
-    } else
-    if ( value.equals("id_toggle_min")) {
       if ( ourServoLimit[MIN_IDX] == ourConfig.servoPulseWidthPairFullRange[MIN_IDX]) {
         ourServoLimit[MIN_IDX] = get_pwm_value();
-        response += String("id_limit_min") + "=" + toPercentage(ourServoLimit[MIN_IDX]) + "%;";
+        response += String("id_btn_store_limit_min") + "=" + String("unlimit") + MYSEP_STR;
       } else {
         ourServoLimit[MIN_IDX] = ourConfig.servoPulseWidthPairFullRange[MIN_IDX];
-        response += String("id_limit_min") + "=" + "Limit;";
+        response += String("id_btn_store_limit_min") + "=" + String("limit") + MYSEP_STR;
       }
+      response += String("id_btn_set_limit_min") + "=" + toPercentage(ourServoLimit[MIN_IDX]) + "%" + MYSEP_STR;
     } else
-    if ( value.equals("id_toggle_max")) {
+    if ( value.equals("id_set_max")) {
       if ( ourServoLimit[MAX_IDX] == ourConfig.servoPulseWidthPairFullRange[MAX_IDX]) {
         ourServoLimit[MAX_IDX] = get_pwm_value();
-        response += String("id_limit_max") + "=" + toPercentage(ourServoLimit[MAX_IDX]) + "%;";
+        response += String("id_btn_store_limit_max") + "=" + String("unlimit") + MYSEP_STR;
       } else {
         ourServoLimit[MAX_IDX] = ourConfig.servoPulseWidthPairFullRange[MAX_IDX];
-        response += String("id_limit_max") + "=" + "Limit;";
+        response += String("id_btn_store_limit_max") + "=" + String("limit") + MYSEP_STR;
       }
+      response += String("id_btn_set_limit_max") + "=" + toPercentage(ourServoLimit[MAX_IDX]) + "%" + MYSEP_STR;
+    } 
+  } else
+  if ( name.equals("cmd_store_servo_pos")) {
+    // value = "id_store_pos_0";
+    int pos = value.substring(13).toInt();
+    if (pos < CONFIG_SERVO_PRESET_MAX) {
+      storePreset(pos);
+      response += getResponse4Preset(pos);
+    } else {
+      Serial.print("ERROR:  illegal idx of store pos for : ");
+      Serial.println(value); 
     }
   } else
-  if ( name.startsWith("id_store_")) {
-    int pos = name.substring(9).toInt();
-    storePreset(pos-1);
-    response += String("id_load_pos_") + String(pos) + "=" + toPercentage(getPreset(pos-1)) + ";";
-  } else
-  if ( name.startsWith("cmd_load_")) {
-    int pos = name.substring(9).toInt();
-    loadPreset(pos-1);
+  if ( name.equals("cmd_set_servo_pos")) {
+    // value = "id_set_pos_0";
+    int pos = value.substring(11).toInt();
+    loadPreset(pos);
     response += createDynValueResponse(name);
-  } else
-  if ( name.equals("id_dataset_descr")) {
-    ourProtocolData.datasetDescription = value;
-  } else
-  if ( name.equals("cmd_dataset_init")) {
-    Serial.println("cmd_dataset_init");
-    ourProtocolData.dataSetIdxUnused=0;
-  } else
-  if ( name.equals("cmd_dataset")) {
-    setProtocolData();
   } else
   if ( name.startsWith("id_rcvendor_")) {
     if (value.equals("Jeti")) {
@@ -1233,10 +1406,10 @@ void setDataReq() {
       ourConfig.servoRangeByVendor = custom;
     }
     initServoRangeSettings(ourConfig.servoRangeByVendor);
-    response += String("id_pulse_width_min") + "=" + ourConfig.servoPulseWidthPairFullRange[MIN_IDX] +";";
-    response += String("id_pulse_width_max") + "=" + ourConfig.servoPulseWidthPairFullRange[MAX_IDX] +";";
-    response += String("id_pulse_width_n100") + "=" + ourConfig.servoPulseWidthPair100Percent[MIN_IDX] + ";";
-    response += String("id_pulse_width_p100") + "=" + ourConfig.servoPulseWidthPair100Percent[MAX_IDX] + ";";
+    response += String("id_pulse_width_min") + "=" + ourConfig.servoPulseWidthPairFullRange[MIN_IDX] +MYSEP_STR;
+    response += String("id_pulse_width_max") + "=" + ourConfig.servoPulseWidthPairFullRange[MAX_IDX] +MYSEP_STR;
+    response += String("id_pulse_width_n100") + "=" + ourConfig.servoPulseWidthPair100Percent[MIN_IDX] + MYSEP_STR;
+    response += String("id_pulse_width_p100") + "=" + ourConfig.servoPulseWidthPair100Percent[MAX_IDX] + MYSEP_STR;
     Serial.println("setting servoRangeByVendor : " + String(ourConfig.servoRangeByVendor));
   } else
   if ( name.startsWith("id_pulse_width_")) {
@@ -1251,12 +1424,11 @@ void setDataReq() {
     } else
     if ( name.equals("id_pulse_width_p100")) {
       ourConfig.servoPulseWidthPair100Percent[MAX_IDX] = value.toInt();
-    } else
-    {
-      Serial.print("ERROR: unknown name of set request: ");
-      Serial.println(name);
     }
     printServoRanges();
+  } else {
+    Serial.print("ERROR: unknown name in set request: ");
+    Serial.print("  "); Serial.print(name); Serial.print("="); Serial.println(value);
   }
 
   if (sendResponse) {
@@ -1284,245 +1456,272 @@ void getDataReq() {
    //  Serial.print(argName); Serial.print(",");
 
     if (argName.equals("id_version")) {
-      response += argName + "=" + APP_VERSION + ";";
+      response += argName + "=" + APP_VERSION + MYSEP_STR;
     } else
     // WiFi stuff
     if (argName.equals("id_wlanSsid")) {
-        response += argName + "=" + ourConfig.wlanSsid + ";";
+        response += argName + "=" + ourConfig.wlanSsid + MYSEP_STR;
     } else
     if (argName.equals("id_wlanPasswd")) {
-        response += argName + "=" + "************;";
+        response += argName + "=" + "************" + MYSEP_STR;
     } else
     if (argName.equals("id_apSsid")) {
-        response += argName + "=" + ourConfig.apSsid + ";";
+        response += argName + "=" + ourConfig.apSsid + MYSEP_STR;
     } else
     if (argName.equals("id_apPasswd")) {
       if (String(ourConfig.apPasswd).length() != 0) {
-        response += argName + "=" + "************;";
+        response += argName + "=" + "************" + MYSEP_STR;
       }
     } else
     if (argName.equals("id_wlanConnetion")) {
       // Serial.print("wifi id_wlanConnetion: ");
       // Serial.println(WiFi.status());
       if (WiFi.status() == WL_CONNECTED) {
-        response += argName + "=" + "verbunden, zugewiesene Adresse: " + WiFi.localIP().toString() +  ";";
+        response += argName + "=" + "verbunden, zugewiesene Adresse: " + WiFi.localIP().toString() +  MYSEP_STR;
       } else {
-        response += argName + "=" + "nicht verbunden;";
+        response += argName + "=" + "nicht verbunden" + MYSEP_STR;
       }
     } else
     if (argName.equals("id_apActive")) {
       if (ourConfig.apIsActive == true) {
-        response += argName + "=" + "checked;";
+        response += argName + "=" + "checked" + MYSEP_STR;
       }
     } else
     if (argName.equals("id_online_status")) {
       Serial.print("wifi status: ");
       Serial.println(WiFi.status());
       if (WiFi.status() == WL_CONNECTED) {
-        response += argName + "=online;";
+        response += argName + "=online" + MYSEP_STR;
       } else {
-        response += argName + "=offline;";
+        response += argName + "=offline" + MYSEP_STR;
       }
     } else
     // angle measure stuff
     if (argName.equals("id_angleValue")) {
-      response += argName + "=" + String(getRoundedAngle()) + ";";
+      response += argName + "=" + String(getRoundedAngle()) + MYSEP_STR;
     } else
     if (argName.equals("id_amplitudeValue")) {
-      response += argName + "=" + String(getRudderAmplitude()) + ";";
+      response += argName + "=" + String(getRudderAmplitude()) + MYSEP_STR;
     } else
     if (argName.equals("id_targetAmplitude")) {
-      response += argName + "=" + ourTargetAmplitude + ";";
+      response += argName + "=" + ourTargetAmplitude + MYSEP_STR;
     } else
     if (argName.equals("cpx_flightphase")) {
       if (ourIsMeasureActive) {
-        response += String("id_rudderneutral") + "=" + String(ourNullAmpl) + ";";
-        response += String("id_ruddermin" ) + "=" + String(ourMinAmpl) + ";";
-        response += String("id_ruddermax" ) + "=" + String(ourMaxAmpl) + ";";
+        response += String("id_rudderneutral") + "=" + String(ourNullAmpl) + MYSEP_STR;
+        response += String("id_ruddermin" ) + "=" + String(ourMinAmpl) + MYSEP_STR;
+        response += String("id_ruddermax" ) + "=" + String(ourMaxAmpl) + MYSEP_STR;
       }
     } else
     if (argName.equals("id_rudderSize")) {
-      response += argName + "=" + ourRudderSize + ";";
+      response += argName + "=" + ourRudderSize + MYSEP_STR;
+    } else
+    if (argName.equals("id_proto_servo_function_def")) {
+      response += argName + "=" + ourProtocolData.currentFunctionIdx + MYSEP_STR;
     } else
     if (argName.equals("id_sensortype")) {
-      response += argName + "=" + ourSensorTypeName + ";";
+      response += argName + "=" + ourSensorTypeName + MYSEP_STR;
     } else
     if (argName.equals("id_invertAngle")) {
       if (ourConfig.angleInversion == -1) {
-        response += argName + "=" + "checked;";
+        response += argName + "=" + "checked" + MYSEP_STR;
       } else {
-        response += argName + "=" + "unchecked;";
+        response += argName + "=" + "unchecked" + MYSEP_STR;
       }
     } else
     if (argName.equals("id_invertAmplitude")) {
       if (ourConfig.amplitudeInversion == -1) {
-        response += argName + "=" + "checked;";
+        response += argName + "=" + "checked" + MYSEP_STR;
       } else {
-        response += argName + "=" + "unchecked;";
+        response += argName + "=" + "unchecked" + MYSEP_STR;
       }
     } else
     if (argName.equals("id_resp_calibrate")) {
       if (!isSensorCalibrated()) {
-        response += argName + "=" + "Sensor ist nicht kalibriert;";
+        response += argName + "=" + "Sensor ist nicht kalibriert" + MYSEP_STR;
       } else {
         if ( ourTriggerCalibrateMPU6050 ) {
-          response += argName + "=" + "Kalibrierung gestartet ...;";
+          response += argName + "=" + "Kalibrierung gestartet ..." + MYSEP_STR;
         } else {
-          response += argName + "=" + "Sensor ist kalibriert;";
+          response += argName + "=" + "Sensor ist kalibriert" + MYSEP_STR;
         }
       }
     } else
     if (argName.equals("id_caloffset_enabled")) {
       if (ourConfig.calibrationOffsetEnabled == true) {
-        response += argName + "=" + "checked;";
+        response += argName + "=" + "checked" + MYSEP_STR;
       } else {
-        response += argName + "=" + "unchecked;";
+        response += argName + "=" + "unchecked" + MYSEP_STR;
       }
     } else
     if (argName.equals("id_caloffset_h")) {
-      response += argName + "=" + ((float)ourConfig.calibrationOffsetHigh)/10 + ";";
+      response += argName + "=" + ((float)ourConfig.calibrationOffsetHigh)/10 + MYSEP_STR;
     } else
     if (argName.equals("id_caloffset_l")) {
-      response += argName + "=" + ((float)ourConfig.calibrationOffsetLow)/10 + ";";
+      response += argName + "=" + ((float)ourConfig.calibrationOffsetLow)/10 + MYSEP_STR;
     } else
     if (argName.equals("nm_referenceAxis")) {
       switch (ourConfig.axis) {
          case xAxis:
-           response += String("id_xAxis") + "=" + "checked;";
+           response += String("id_xAxis") + "=" + "checked" + MYSEP_STR;
            break;
          case yAxis:
-           response += String("id_yAxis") + "=" + "checked;";
+           response += String("id_yAxis") + "=" + "checked" + MYSEP_STR;
            break;
          case zAxis:
-           response += String("id_zAxis") + "=" + "checked;";
+           response += String("id_zAxis") + "=" + "checked" + MYSEP_STR;
            break;
       }
     } else
     if (argName.equals("nm_anglePrecision")) {
       if (ourConfig.anglePrecision == P010) {
-        response += String("id_anglePrec_P010") + "=" + "checked;";
+        response += String("id_anglePrec_P010") + "=" + "checked" + MYSEP_STR;
       } else {
-        response += String("id_anglePrec_P001") + "=" + "checked;";
+        response += String("id_anglePrec_P001") + "=" + "checked" + MYSEP_STR;
       }
     } else
     if (argName.equals("nm_precisionAmplitude")) {
       if (ourConfig.amplitudePrecision == P001) {
-        response += String("id_amplPrec_P001") + "=" + "checked;";
+        response += String("id_amplPrec_P001") + "=" + "checked" + MYSEP_STR;
       } else if (ourConfig.amplitudePrecision == P010) {
-        response += String("id_amplPrec_P010") + "=" + "checked;";
+        response += String("id_amplPrec_P010") + "=" + "checked" + MYSEP_STR;
       } else if (ourConfig.amplitudePrecision == P050) {
-        response += String("id_amplPrec_P050") + "=" + "checked;";
+        response += String("id_amplPrec_P050") + "=" + "checked" + MYSEP_STR;
       } else if (ourConfig.amplitudePrecision == P100) {
-        response += String("id_amplPrec_P100") + "=" + "checked;";
+        response += String("id_amplPrec_P100") + "=" + "checked" + MYSEP_STR;
       }
     } else
     if (argName.equals("id_amplitudeCalcMethod")) {
       if (ourConfig.amplitudeCalcMethod == ARC) {
-        response += argName + "=" + "Kreisbogen;";
+        response += argName + "=" + "Kreisbogen" + MYSEP_STR;
       } else if (ourConfig.amplitudeCalcMethod == CHORD) {
-        response += argName + "=" + "Kreissehne;";
+        response += argName + "=" + "Kreissehne" + MYSEP_STR;
       } else if (ourConfig.amplitudeCalcMethod == VERTICAL_DISTANCE) {
-        response += argName + "=" + "senkrechter Abstand;";
+        response += argName + "=" + "senkrechter Abstand" + MYSEP_STR;
       }
     } else
     if (argName.equals("nm_distancetype")) {
       if (ourConfig.amplitudeCalcMethod == ARC) {
-        response += String("id_distance_arc") + "=" + "checked;";
+        response += String("id_distance_arc") + "=" + "checked" + MYSEP_STR;
       } else if (ourConfig.amplitudeCalcMethod == CHORD) {
-        response += String("id_distance_chord") + "=" + "checked;";
+        response += String("id_distance_chord") + "=" + "checked" + MYSEP_STR;
       } else if (ourConfig.amplitudeCalcMethod == VERTICAL_DISTANCE) {
-        response += String("id_vertical_distance") + "=" + "checked;";
+        response += String("id_vertical_distance") + "=" + "checked" + MYSEP_STR;
       }
     } else
     // servo control stuff
     if (argName.equals("id_pulse_width_min")) {
-      response += argName + "=" + String(ourConfig.servoPulseWidthPairFullRange[MIN_IDX]) + ";";
+      response += argName + "=" + String(ourConfig.servoPulseWidthPairFullRange[MIN_IDX]) + MYSEP_STR;
     } else
     if (argName.equals("id_pulse_width_max")) {
-      response += argName + "=" + String(ourConfig.servoPulseWidthPairFullRange[MAX_IDX]) + ";";
+      response += argName + "=" + String(ourConfig.servoPulseWidthPairFullRange[MAX_IDX]) + MYSEP_STR;
     } else
     if (argName.equals("id_pulse_width_n100")) {
-      response += argName + "=" + String(ourConfig.servoPulseWidthPair100Percent[MIN_IDX]) + ";";
+      response += argName + "=" + String(ourConfig.servoPulseWidthPair100Percent[MIN_IDX]) + MYSEP_STR;
     } else
     if (argName.equals("id_pulse_width_p100")) {
-      response += argName + "=" + String(ourConfig.servoPulseWidthPair100Percent[MAX_IDX]) + ";";
+      response += argName + "=" + String(ourConfig.servoPulseWidthPair100Percent[MAX_IDX]) + MYSEP_STR;
     } else
     if (argName.equals("id_pwm_value")) {
-      response += argName + "=" + String(get_pwm_value()) + ";";
+      response += argName + "=" + String(get_pwm_value()) + MYSEP_STR;
     } else
     if (argName.equals("id_pwm_setvalue")) {
       response += argName + "=" + String(get_pwm_value())
                   + "=" + String(ourConfig.servoPulseWidthPairFullRange[MIN_IDX])
                   + "=" + String(ourConfig.servoPulseWidthPairFullRange[MAX_IDX])
-                  + ";";
+                  + MYSEP_STR;
     } else
     if (argName.equals("id_percent_value")) {
-      response += argName + "=" + String(get_percent_value()) + ";";
+      response += argName + "=" + String(get_percent_value()) + MYSEP_STR;
     } else
     if (argName.equals("id_percent_setvalue")) {
       response += argName + "=" + String(get_percent_value())
                   + "=" + String(get_percent_value(ourConfig.servoPulseWidthPairFullRange[MIN_IDX]))
                   + "=" + String(get_percent_value(ourConfig.servoPulseWidthPairFullRange[MAX_IDX]))
-                  + ";";
+                  + MYSEP_STR;
     } else
     if (argName.equals("id_pos_slider")) {
       response += argName + "=" + String(get_percent_value())
                   + "=" + String(get_percent_value(ourConfig.servoPulseWidthPairFullRange[MIN_IDX]))
                   + "=" + String(get_percent_value(ourConfig.servoPulseWidthPairFullRange[MAX_IDX]))
-                  + ";";
+                  + MYSEP_STR;
     } else
-    if (argName.startsWith("id_load_pos_")) {
-      int pos = argName.substring(12).toInt();
-      response += argName + "=" + String(toPercentage(getPreset(pos-1))) + ";";
+    if (argName.startsWith("id_btn_set_pos_")) {
+      int pos = argName.substring(15).toInt();
+      response += argName + "=" + String(toPercentage(getPreset(pos))) + MYSEP_STR;
     } else
-    if (argName.startsWith("id_limit_")) {
-      if (argName.equals("id_limit_min")) {
+    if (argName.startsWith("id_btn_set_limit_")) {
+      if (argName.equals("id_btn_set_limit_min")) {
+        response += argName + "=" + toPercentage(ourServoLimit[MIN_IDX]) + "%" + MYSEP_STR;
+      } else {
+        response += argName + "=" + toPercentage(ourServoLimit[MAX_IDX]) + "%" + MYSEP_STR;
+      }
+    } else
+    if (argName.startsWith("id_btn_store_limit_")) {
+      if (argName.endsWith("_min")) {
         if ( ourServoLimit[MIN_IDX] == ourConfig.servoPulseWidthPairFullRange[MIN_IDX]) {
-          response += argName + "=" + "-Limit;";
+          response += argName + "=" + String("limit") + MYSEP_STR;
         } else {
-          response += argName + "=" + toPercentage(ourServoLimit[MIN_IDX]) + "%;";
+          response += argName + "=" + String("unlimit") + MYSEP_STR;
         }
       } else {
         if ( ourServoLimit[MAX_IDX] == ourConfig.servoPulseWidthPairFullRange[MAX_IDX]) {
-          response += argName + "=" + "Limit;";
+          response += argName + "=" + String("limit") + MYSEP_STR;
         } else {
-          response += argName + "=" + toPercentage(ourServoLimit[MAX_IDX]) + "%;";
+          response += argName + "=" + String("unlimit") + MYSEP_STR;
         }
+      }
+      // int pos = argName.substring(15).toInt();
+      // response += argName + "=" + String(toPercentage(getPreset(pos))) + MYSEP_STR;
+    } else
+    if (argName.startsWith("id_btn_store_pos_")) {
+      int pos = argName.substring(17).toInt();
+      if (pos < CONFIG_SERVO_PRESET_MAX) {
+        int theServoPos = ourConfig.servoPresets[pos];
+        float theAngle = ourProtocolData.currentPresetAngles[pos];
+        if (theAngle == ANGLE_UNSET_VAL) {
+          response += argName + "=-" + MYSEP_STR;
+        } else {
+          response += argName + "=" + String(getRoundedAngle(theAngle), 1)+"&deg;/"+ String(getRoundedAmplitude(theAngle),1)+"mm"+MYSEP_STR;
+        }
+      } else {
+        Serial.print("ERROR:  illegal idx of store pos for : ");
+        Serial.println(argName); 
       }
     } else
     if (argName.equals("id_vendor_settings")) {
       String vendor = getVendorString(ourConfig.servoRangeByVendor);
-      response += argName + "=" + vendor + ";";
+      response += argName + "=" + vendor + MYSEP_STR;
     } else
     if (argName.equals("id_rcvendor")) {
       String vendor = getVendorString(ourConfig.servoRangeByVendor);
       vendor.toLowerCase();
-      response += argName+"_"+vendor + "=" + "checked;";
+      response += argName+"_"+vendor + "=" + "checked" + MYSEP_STR;
     } else
     if (argName.startsWith("id_rcvendor_")) {
       String vendor = getVendorString(ourConfig.servoRangeByVendor);
       vendor.toLowerCase();
-      response += "id_rcvendor_"+vendor + "=" + "checked;";
+      response += "id_rcvendor_"+vendor + "=" + "checked" + MYSEP_STR;
     } else
     if (argName.equals("id_servo_direction")) {
       if (ourServoDirection == -1) {
-        response += argName + "=" + "checked;";
+        response += argName + "=" + "checked" + MYSEP_STR;
       } else {
-        response += argName + "=" + "unchecked;";
+        response += argName + "=" + "unchecked" + MYSEP_STR;
       }
     } else
     if (argName.equals("id_wheel_activate")) {
       if (ourWheelActivation == true) {
-        response += argName + "=" + "checked;";
+        response += argName + "=" + "checked" + MYSEP_STR;
       } else {
-        response += argName + "=" + "unchecked;";
+        response += argName + "=" + "unchecked" + MYSEP_STR;
       }
     } else
     if (argName.equals("id_wheel_factor")) {
-      response += argName + "=" + String(ourWheelFactor) + ";";
+      response += argName + "=" + String(ourWheelFactor) + MYSEP_STR;
     } else
     if (argName.equals("id_dataset_descr")) {
-      response += argName + "=" + ourProtocolData.datasetDescription + ";";
+      response += argName + "=" + ourProtocolData.datasetDescription + MYSEP_STR;
     } else
     {
       Serial.print("ERROR: unknown name of get request: ");
@@ -1536,6 +1735,32 @@ void getDataReq() {
   #endif
   server.send(200, "text/plane", response.c_str()); //Send the response value only to client ajax request
 }
+
+String servoFunctionIdx2Shortcut(int aIdx) {
+  // "option_fd_QR-1-R",
+  //            10  
+  return servoFunctionIdx2Def(aIdx).substring(10);
+}
+
+
+String servoFunctionIdx2Def(int aIdx) {
+  if (aIdx < RD_LAST) {
+    return String(ourFunctionDefMap[aIdx]);
+  }
+  return String("undefined");
+}
+
+int servoFunctionDef2Idx(String aDef) {
+  for (int i=0; i < RD_LAST; i++) {
+    if (aDef.equals(ourFunctionDefMap[i])) {
+      return i;
+    }
+  }
+  Serial.print("ERROR: illegal function def : ");
+  Serial.println(aDef); 
+  return -1;
+}
+
 
 String getVendorString(rc_vendor_t aVendor) {
   String vendor;
@@ -1982,7 +2207,7 @@ void printConfig(const char* aContext) {
   Serial.println("servo control settings:");
   Serial.print("  servoRangeByVendor = "); Serial.println(ourConfig.servoRangeByVendor);
   Serial.print("  servoInversion     = "); Serial.println(ourConfig.servoInversion);
-  for (int i=0; i<CONFIG_SERVO_PRESET_L; i++) {
+  for (int i=0; i<CONFIG_SERVO_PRESET_MAX; i++) {
     Serial.println(String("  servoPresets[")+i+"]    = " + ourConfig.servoPresets[i]);
   }
   Serial.print("  FullRange[MIN_IDX] = "); Serial.println(ourConfig.servoPulseWidthPairFullRange[MIN_IDX]);

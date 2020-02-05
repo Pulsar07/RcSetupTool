@@ -66,55 +66,66 @@ const char SERVO_page[] PROGMEM = R"=====(
       </div>
     </div>
   </div>
-  <div class="row">
+   <div class="row">
     <div class="col-declaration">
-      <label for="id_start">Setzte Position :</label>
+     <div class="label_grp" >
+      <label for="id_start">Setze Servo-Pos :</label>
+      <label for="id_start">Store Servo-Pos :</label>
+     </div>
     </div>
-    <div class="col-full">
-      <a class="c_button limiter" id="id_toggle_min" name="cmd_limit" 
-        onclick="sendNameValue(this.name, this.id)">
-        <span id=id_limit_min>-Limit</span></a>
-      <a class="c_button store" id="id_load_1" name="cmd_load_1" 
-        onclick="sendNameValue(this.name, this.value)">
-        <span id=id_load_pos_1>-100</span>%</a>
-      <a class="c_button store" id="id_load_2" name="cmd_load_2"
-        onclick="sendNameValue(this.name, this.value)">
-        <span id=id_load_pos_2>-50</span>%</a>
-      <a class="c_button store" id="id_load_3" name="cmd_load_3"
-        onclick="sendNameValue(this.name, this.value)">
-        <span id=id_load_pos_3>0</span>%</a>
-      <a class="c_button store" id="id_load_4" name="cmd_load_4"
-        onclick="sendNameValue(this.name, this.value)">
-        <span id=id_load_pos_4>50</span>%</a>
-      <a class="c_button store" id="id_load_5" name="cmd_load_5"
-        onclick="sendNameValue(this.name, this.value)">
-        <span id=id_load_pos_5>100</span>%</a>
-      <a class="c_button limiter" id="id_toggle_max" name="cmd_limit" 
-        onclick="sendNameValue(this.name, this.id)">
-        <span id=id_limit_max>+Limit</span></a>
+    <div class="col-full"> 
+     <div class="c_button_grp" >
+      <a class="c_button limiter tooltip" id="id_toggle_min" name="cmd_limit"
+       onclick="sendNameValue(this.name, this.id)">
+       <span id="id_btn_set_limit_min">-</span>
+      </a>
+      <a class="c_button store_servo" id="id_set_min" name="cmd_limit"
+       onclick="sendNameValue(this.name, this.id)">
+       <span id="id_btn_store_limit_min">limit</span>
+      </a>
+     </div>
+     <div class="c_button_grp" >
+      <a class="c_button set_servo tooltip" id="id_set_pos_0" name="cmd_set_servo_pos"
+       onclick="sendNameValue(this.name, this.id)">
+       <span id="id_btn_set_pos_0">-100</span>%
+      </a>
+      <a class="c_button store_servo" id="id_store_pos_0" name="cmd_store_servo_pos"
+       onclick="sendNameValue(this.name, this.id)">
+       <span id="id_btn_store_pos_0">-</span>
+      </a>
+     </div>
+     <div class="c_button_grp" >
+      <a class="c_button set_servo tooltip" id="id_set_pos_1" name="cmd_set_servo_pos"
+       onclick="sendNameValue(this.name, this.id)">
+       <span id="id_btn_set_pos_1">0</span>%
+      </a>
+      <a class="c_button store_servo" id="id_store_pos_1" name="cmd_store_servo_pos"
+       onclick="sendNameValue(this.name, this.id)">
+       <span id="id_btn_store_pos_1">-</span>
+      </a>
+     </div>
+     <div class="c_button_grp" >
+      <a class="c_button set_servo tooltip" id="id_set_pos_2" name="cmd_set_servo_pos"
+       onclick="sendNameValue(this.name, this.id)">
+       <span id="id_btn_set_pos_2">+100</span>%
+      </a>
+      <a class="c_button store_servo" id="id_store_pos_2" name="cmd_store_servo_pos"
+       onclick="sendNameValue(this.name, this.id)">
+       <span id="id_btn_store_pos_2">-</span>
+      </a>
+     </div>
+     <div class="c_button_grp" >
+      <a class="c_button limiter tooltip" id="id_toggle_max" name="cmd_limit"
+       onclick="sendNameValue(this.name, this.id)">
+       <span id="id_btn_set_limit_max">+</span>
+      </a>
+      <a class="c_button store_servo" id="id_set_max" name="cmd_limit"
+       onclick="sendNameValue(this.name, this.id)">
+       <span id="id_btn_store_limit_max">limit</span>
+      </a>
+     </div>
     </div>
-  </div>
-  <div class="row">
-    <div class="col-declaration">
-      <label for="id_start">Position &uuml;bernehmen :</label>
-    </div>
-    <div class="col-full">
-      <a class="c_button set" id="id_set_min" name="cmd_limit" 
-        onclick="sendNameValue(this.name, this.id)">Set</a>
-      <a class="c_button set" id="id_store_1" name="cmd_store_1"
-        onclick="sendNameValue(this.id, this.name)">Set</a>
-      <a class="c_button set" id="id_store_2" name="cmd_store_2"
-        onclick="sendNameValue(this.id, this.name)">Set</a>
-      <a class="c_button set" id="id_store_3" name="cmd_store_3"
-        onclick="sendNameValue(this.id, this.name)">Set</a>
-      <a class="c_button set" id="id_store_4" name="cmd_store_4"
-        onclick="sendNameValue(this.id, this.name)">Set</a>
-      <a class="c_button set" id="id_store_5" name="cmd_store_5"
-        onclick="sendNameValue(this.id, this.name)">Set</a>
-      <a class="c_button set" id="id_set_max" name="cmd_limit" 
-        onclick="sendNameValue(this.name, this.id)">Set</a>
-    </div>
-  </div>
+   </div>
   <div class="row">
     <div class="col-declaration">
       <label>Servog-Dreh<br>Richtung:</label>
@@ -173,8 +184,9 @@ const char SERVO_page[] PROGMEM = R"=====(
 
    getData("id_pwm_value", "id_percent_value", "id_pwm_setvalue", "id_percent_setvalue", 
     "id_pos_slider", "id_servo_direction",
-    "id_load_pos_1", "id_load_pos_2", "id_load_pos_3", "id_load_pos_4", "id_load_pos_5",
-    "id_limit_min", "id_limit_max",
+    "id_btn_set_pos_0", "id_btn_set_pos_1", "id_btn_set_pos_2",
+    "id_btn_store_pos_0", "id_btn_store_pos_1", "id_btn_store_pos_2",
+    "id_btn_store_limit_min", "id_btn_set_limit_min", "id_btn_store_limit_max", "id_btn_set_limit_max",
     "id_pulse_width_min", "id_pulse_width_max", "id_pulse_width_p100", "id_pulse_width_n100", 
     "id_wheel_activate", "id_wheel_factor",
     "id_vendor_settings", "id_version"

@@ -63,27 +63,36 @@ function createREADME {
 
 function compile {
   echo "compiling for board : $BOARD"
+  PM_GCC_PATH=$( find $HOME/.arduino* -type f -name "avr-g++" )
+  PM_GCC_PATH=${PM_GCC_PATH%/bin/avr-g++}
+  PM_DUDE_PATH=$( find $HOME/.arduino* -type f -name "avrdude" )
+  PM_DUDE_PATH=${PM_DUDE_PATH%/bin/avrdude}
+  PM_OTA_PATH=$( find $HOME/.arduino* -type f -name "arduinoOTA" )
+  PM_OTA_PATH=${PM_OTA_PATH%/bin/arduinoOTA}
+
+  ESP_PYTHON_PATH=$( find $HOME/.arduino* -type f -name "placeholder_for_arduino" )
+  ESP_PYTHON_PATH=${ESP_PYTHON_PATH%/placeholder_for_arduino}
+  ESP_TOOLS_PATH=$( find $HOME/.arduino*/packages/esp8266/hardware/esp8266/ -type f -name "upload.py" )
+  ESP_TOOLS_PATH=${ESP_TOOLS_PATH%/upload.py}
+
   if [ $BOARD =  "NODE_MCU_1.0" ] ; then
-    # /usr/share/arduino/arduino-builder -dump-prefs -logger=machine -hardware /usr/share/arduino/hardware -hardware $HOME/.arduino15/packages -tools /usr/share/arduino/tools-builder -tools $HOME/.arduino15/packages -built-in-libraries /usr/share/arduino/libraries -libraries $HOME/Links/stransky/dev/arduino/libraries -fqbn=esp8266:esp8266:nodemcuv2:xtal=80,vt=flash,exception=disabled,ssl=all,eesz=4M,ip=lm2f,dbg=Disabled,lvl=None____,wipe=none,baud=115200 -ide-version=10805 -build-path /tmp/arduino_build_422359 -warnings=default -prefs=build.warn_data_percentage=75 -prefs=runtime.tools.python.path=$HOME/.arduino15/packages/esp8266/tools/python/3.7.2-post1 -prefs=runtime.tools.xtensa-lx106-elf-gcc.path=$HOME/.arduino15/packages/esp8266/tools/xtensa-lx106-elf-gcc/2.5.0-3-20ed2b9 -prefs=runtime.tools.mkspiffs.path=$HOME/.arduino15/packages/esp8266/tools/mkspiffs/2.5.0-3-20ed2b9 -verbose $HOME/Links/stransky/dev/arduino/esp8266/KlebeTester/KlebeTester.ino
-    /usr/share/arduino/arduino-builder -compile -hardware /usr/share/arduino/hardware -hardware $HOME/.arduino15/packages -tools /usr/share/arduino/tools-builder -tools $HOME/.arduino15/packages -built-in-libraries /usr/share/arduino/libraries -libraries $HOME/Links/stransky/dev/arduino/libraries -fqbn=esp8266:esp8266:nodemcuv2:xtal=80,vt=flash,exception=disabled,ssl=all,eesz=4M,ip=lm2f,dbg=Disabled,lvl=None____,wipe=none,baud=115200 -build-path $TEMP_FOLDER -warnings=default -prefs=build.warn_data_percentage=75 -prefs=runtime.tools.python.path=$HOME/.arduino15/packages/esp8266/tools/python/3.7.2-post1 -prefs=runtime.tools.xtensa-lx106-elf-gcc.path=$HOME/.arduino15/packages/esp8266/tools/xtensa-lx106-elf-gcc/2.5.0-3-20ed2b9 -prefs=runtime.tools.mkspiffs.path=$HOME/.arduino15/packages/esp8266/tools/mkspiffs/2.5.0-3-20ed2b9 ./*.ino
+    /usr/share/arduino/arduino-builder -compile -hardware /usr/share/arduino/hardware -hardware $HOME/.arduino15/packages -tools /usr/share/arduino/tools-builder -tools $HOME/.arduino15/packages -built-in-libraries /usr/share/arduino/libraries -libraries $HOME/Links/stransky/dev/arduino/libraries -fqbn=esp8266:esp8266:nodemcuv2:xtal=80,vt=flash,exception=disabled,ssl=all,eesz=4M,ip=lm2f,dbg=Disabled,lvl=None____,wipe=none,baud=115200 -build-path $TEMP_FOLDER -warnings=default -prefs=build.warn_data_percentage=75 -prefs=runtime.tools.python.path=$ESP_PYTHON_PATH -prefs=runtime.tools.xtensa-lx106-elf-gcc.path=$HOME/.arduino15/packages/esp8266/tools/xtensa-lx106-elf-gcc/2.5.0-3-20ed2b9 -prefs=runtime.tools.mkspiffs.path=$HOME/.arduino15/packages/esp8266/tools/mkspiffs/2.5.0-3-20ed2b9 ./*.ino
   elif [ $BOARD =  "PRO_MINI_16MHZ" ] ; then
-    /usr/share/arduino/arduino-builder -compile -hardware /usr/share/arduino/hardware -hardware $HOME/.arduino15/packages -tools /usr/share/arduino/tools-builder -tools $HOME/.arduino15/packages -built-in-libraries /usr/share/arduino/libraries -libraries $HOME/Links/stransky/dev/arduino/libraries -fqbn=arduino:avr:pro:cpu=16MHzatmega328 -ide-version=10805 -build-path $TEMP_FOLDER -warnings=default -prefs=build.warn_data_percentage=75 -prefs=runtime.tools.avr-gcc.path=$HOME/.arduino15/packages/arduino/tools/avr-gcc/5.4.0-atmel3.6.1-arduino2 -prefs=runtime.tools.avrdude.path=$HOME/.arduino15/packages/arduino/tools/avrdude/6.3.0-arduino12 -prefs=runtime.tools.arduinoOTA.path=$HOME/.arduino15/packages/arduino/tools/arduinoOTA/1.2.0 -verbose $MYDIR/*.ino
+    /usr/share/arduino/arduino-builder -compile -hardware /usr/share/arduino/hardware -hardware $HOME/.arduino15/packages -tools /usr/share/arduino/tools-builder -tools $HOME/.arduino15/packages -built-in-libraries /usr/share/arduino/libraries -libraries $HOME/Links/stransky/dev/arduino/libraries -fqbn=arduino:avr:pro:cpu=16MHzatmega328 -ide-version=10805 -build-path $TEMP_FOLDER -warnings=default -prefs=build.warn_data_percentage=75 -prefs=runtime.tools.avr-gcc.path=$PM_GCC_PATH -prefs=runtime.tools.avrdude.path=$PM_DUDE_PATH -prefs=runtime.tools.arduinoOTA.path=$PM_OTA_PATH -verbose $MYDIR/*.ino
 
   elif [ $BOARD =  "PRO_MINI_8MHZ" ] ; then
-    /usr/share/arduino/arduino-builder -compile -hardware /usr/share/arduino/hardware -hardware $HOME/.arduino15/packages -tools /usr/share/arduino/tools-builder -tools $HOME/.arduino15/packages -built-in-libraries /usr/share/arduino/libraries -libraries $HOME/Links/stransky/dev/arduino/libraries -fqbn=arduino:avr:pro:cpu=8MHzatmega328 -ide-version=10805 -build-path $TEMP_FOLDER -warnings=default -prefs=build.warn_data_percentage=75 -prefs=runtime.tools.avr-gcc.path=$HOME/.arduino15/packages/arduino/tools/avr-gcc/5.4.0-atmel3.6.1-arduino2 -prefs=runtime.tools.avrdude.path=$HOME/.arduino15/packages/arduino/tools/avrdude/6.3.0-arduino12 -prefs=runtime.tools.arduinoOTA.path=$HOME/.arduino15/packages/arduino/tools/arduinoOTA/1.2.0 -verbose $MYDIR/*.ino
-  else 
-    echo "no board type specified ... exiting" 
+    /usr/share/arduino/arduino-builder -compile -hardware /usr/share/arduino/hardware -hardware $HOME/.arduino15/packages -tools /usr/share/arduino/tools-builder -tools $HOME/.arduino15/packages -built-in-libraries /usr/share/arduino/libraries -libraries $HOME/Links/stransky/dev/arduino/libraries -fqbn=arduino:avr:pro:cpu=8MHzatmega328 -ide-version=10805 -build-path $TEMP_FOLDER -warnings=default -prefs=build.warn_data_percentage=75 -prefs=runtime.tools.avr-gcc.path=$PM_GCC_PATH -prefs=runtime.tools.avrdude.path=$PM_DUDE_PATH -prefs=runtime.tools.arduinoOTA.path=$PM_OTA_PATH -verbose $MYDIR/*.ino
   fi
 }
 
 function upload {
   if [ $BOARD =  "NODE_MCU_1.0" ] ; then
-    $HOME/.arduino15/packages/esp8266/tools/python/3.7.2-post1/python $HOME/.arduino15/packages/esp8266/hardware/esp8266/2.5.2/tools/upload.py --chip esp8266 --trace version --end --chip esp8266 --port /dev/$USBPort --baud 230400  write_flash 0x0 $TEMP_FOLDER/*.ino.bin --end
+    $ESP_PYTHON_PATH/python $ESP_TOOLS_PATH/upload.py --chip esp8266 --port /dev/$USBPort --baud 115200 --trace version --end --chip esp8266 --port /dev/$USBPort --baud 115200  write_flash 0x0 $TEMP_FOLDER/*.ino.bin --end
   elif [ $BOARD =  "PRO_MINI_16MHZ" ] ; then
-    $HOME/.arduino15/packages/arduino/tools/avrdude/6.3.0-arduino12/bin/avrdude -C$HOME/.arduino15/packages/arduino/tools/avrdude/6.3.0-arduino12/etc/avrdude.conf -v -V -patmega328p -carduino -P/dev/$USBPort -b57600 -D -Uflash:w:$TEMP_FOLDER/*.ino.hex:i
+    $PM_DUDE_PATH/bin/avrdude -C$PM_DUDE_PATH/etc/avrdude.conf -v -V -patmega328p -carduino -P/dev/$USBPort -b57600 -D -Uflash:w:$TEMP_FOLDER/*.ino.hex:i
 
   elif [ $BOARD =  "PRO_MINI_8MHZ" ] ; then
-    $HOME/.arduino15/packages/arduino/tools/avrdude/6.3.0-arduino12/bin/avrdude -C$HOME/.arduino15/packages/arduino/tools/avrdude/6.3.0-arduino12/etc/avrdude.conf -v -V -patmega328p -carduino -P/dev/$USBPort -b57600 -D -Uflash:w:$TEMP_FOLDER/*.ino.hex:i
+    $PM_DUDE_PATH/bin/avrdude -C$PM_DUDE_PATH/etc/avrdude.conf -v -V -patmega328p -carduino -P/dev/$USBPort -b57600 -D -Uflash:w:$TEMP_FOLDER/*.ino.hex:i
   fi
 }
 

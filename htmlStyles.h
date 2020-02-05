@@ -11,7 +11,7 @@ h2, h3, h4, p {
   padding: 0px 0px 0px 40px;
 }
 
-input[type=text], select, textarea {
+input[type=text], textarea {
   width: 100%;
   padding: 5px;
   border: 1px solid #ccc;
@@ -19,16 +19,19 @@ input[type=text], select, textarea {
   resize: vertical;
 }
 
-input[type=checkbox].config, input[type=radio].config, input[type=number].config {
+
+input[type=checkbox].config, input[type=radio].config, input[type=number].config, select {
   margin: 5px 12px 5px 5px;
   border: 1px solid #ccc;
   border-radius: 4px;
   display: block;
+  display: inline-block;
 }
 
 label {
   padding: 6px 12px 6px 0;
   display: block;
+  display: inline-block;
 }
 
 label.input {
@@ -135,6 +138,12 @@ table {
   width: 5em;
 }
 
+.col-button {
+  float: left;
+  width: 20%;
+  padding: 5px;
+}
+
 .col-half {
   text-align: center;
   float: left;
@@ -205,11 +214,20 @@ table {
   clear: both;
 }
 
-a.c_button {
+.c_button_grp, .label_grp {
   display:inline-block;
   padding:0.3em 0.8em;
   margin:0 0.3em 0.3em 0;
-  width: 10%;
+}
+
+.c_button_grp {
+  width: 17%;
+}
+a.c_button,a.show_button {
+  display:inline-block;
+  padding:0.3em 0.8em;
+  margin:0 0.3em 0.3em 0;
+  width: 100%;
   border-radius:2em;
   box-sizing: border-box;
   text-decoration:none;
@@ -223,16 +241,17 @@ a.c_button {
   transition: all 0.2s;
 }
 
-a.store {
+a.show_button {
+  background-color: #666666;
+}
+
+a.set_servo {
   background-color: #01DF01;
 }
 
-a.set {
+a.store_servo {
+  font-size: .8em;
   background-color: #848484;
-}
-
-a.limiter {
-  background-color: #FE642E;
 }
 
 a.c_button:hover {
@@ -332,12 +351,99 @@ input:checked + .slidebox:before {
   cursor: pointer;
 }
 
+a.limiter {
+  background-color: #FE642E;
+  opacity: 1.0;
+}
+
+.tooltip {
+  position: relative;
+  display: inline-block;
+  border-bottom: 1px dotted black;
+}
+.tooltip .tooltiptext {
+  visibility: hidden;
+  width: 120px;
+  background-color: black;
+  color: #fff;
+  text-align: center;
+  border-radius: 6px;
+  padding: 5px 0;
+  position: absolute;
+  z-index: 1;
+  top: -5px;
+  right: 110%;
+}
+
+.tooltip .tooltiptext::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  margin-top: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: transparent transparent transparent black;
+}
+.tooltip:hover .tooltiptext {
+  visibility: visible;
+  opacity: 0.7;
+}
+
+ /* Dropdown Button */
+.dropbtn {
+  background-color: #4CAF50;
+  color: white;
+  padding: 16px;
+  font-size: 16px;
+  border: none;
+}
+
+/* The container <div> - needed to position the dropdown content */
+.dropdown {
+  position: relative;
+  position: absolute;
+  display: inline-block;
+}
+
+/* Dropdown Content (Hidden by Default) */
+.dropdown-content {
+  display: none;
+  position: absolute;
+  background-color: #f1f1f1;
+  min-width: 160px;
+  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+  z-index: 1;
+}
+
+/* Links inside the dropdown */
+.dropdown-content a {
+  color: black;
+  padding: 12px 16px;
+  text-decoration: none;
+  display: block;
+}
+
+/* Change color of dropdown links on hover */
+.dropdown-content a:hover {background-color: #ddd;}
+
+/* Show the dropdown menu on hover */
+.dropdown:hover .dropdown-content {display: block;}
+.dropdown-rs:hover .dropdown-content {display: block;}
+.dropdown-rs:hover .dropdown-touch {display: block;}
+.dropdown-rs:hover:active {display: none;}
+
+
+/* Change the background color of the dropdown button when the dropdown content is shown */
+.dropdown:hover .dropbtn {background-color: #3e8e41;}
+
 /* Responsive layout - when the screen is less than 600px wide, make the two columns stack on top of each other instead of next to each other
 @media screen and (max-width: 600px) {
 */
 @media (max-aspect-ratio: 8/5) {
   body {
     background: #66f;
+    font-family: Arial, Helvetica, sans-serif;
   }
   
   h2, h3, h4, p {
@@ -361,7 +467,8 @@ input:checked + .slidebox:before {
     height: 70px;
   }
   
-  a.c_button   {
+
+  a.c_button, a.show_button   {
     border: 3px solid #000;
     height: 4em;
     writing-mode: tb-rl;
