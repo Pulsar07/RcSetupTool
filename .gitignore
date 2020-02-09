@@ -39,6 +39,7 @@
 
 # vim stuff
 *.swp
+*.swo
 
 # private stuff
 myWifiSettings.h

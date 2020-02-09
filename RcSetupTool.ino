@@ -17,7 +17,12 @@
 #include "htmlStyles.h"
 #include "Config.h"
 
+// !!!!!!!!!!!!!!!!!!
+// if you enable this define, the lib sligthly patched lib 
+// Adafruit_MMA8451_Library in the provided libs directory 
+// has to be added to the arduino library folder
 // #define SUPPORT_MMA8451
+// !!!!!!!!!!!!!!!!!!
 #ifdef SUPPORT_MMA8451
 #include <Adafruit_MMA8451.h>         // MMA8451 library
 #endif
@@ -41,6 +46,8 @@
 // V0.13 : support for all ASCII special chars in SSID and passwords
 //         more enhanced preset and protocol behaviour
 #define APP_VERSION "V0.13"
+// V0.14 : provided patched Adafruit_MMA8451_Library in the repository
+#define APP_VERSION "V0.14"
 
 /**
  * \file RcSetupTool.ino
