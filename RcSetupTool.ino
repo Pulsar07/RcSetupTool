@@ -18,8 +18,8 @@
 #include "Config.h"
 
 // !!!!!!!!!!!!!!!!!!
-// if you enable this define, the lib sligthly patched lib 
-// Adafruit_MMA8451_Library in the provided libs directory 
+// if you enable this define, the lib sligthly patched lib
+// Adafruit_MMA8451_Library in the provided libs directory
 // has to be added to the arduino library folder
 // #define SUPPORT_MMA8451
 // !!!!!!!!!!!!!!!!!!
@@ -45,7 +45,6 @@
 // V0.12 : some small beautifications
 // V0.13 : support for all ASCII special chars in SSID and passwords
 //         more enhanced preset and protocol behaviour
-#define APP_VERSION "V0.13"
 // V0.14 : provided patched Adafruit_MMA8451_Library in the repository
 #define APP_VERSION "V0.14"
 
@@ -208,9 +207,9 @@
  * In dieser Ansicht kann sowohl der Servo gesteurt als auch der Winkel-Sensor abgelesen werden.
  * Dies ist vor allem bei Servo- und Gestänge-Einbauten ein große Hilfe.
  * ![MultiToolPage](https://raw.githubusercontent.com/Pulsar07/RcSetupTool/master/doc/img/RCST_MultiToolPage.png)
- * Zusätzlich können den in den Preset-Buttons gespeicherten Servo-Werte 
- * (und die gemessenen Winkel- und Ruderauschlagswerte) und eine Nutzer-Beschreibung 
- * des Datensatzes festgehalten und mittels der Funktion "Zeige Protokoll" 
+ * Zusätzlich können den in den Preset-Buttons gespeicherten Servo-Werte
+ * (und die gemessenen Winkel- und Ruderauschlagswerte) und eine Nutzer-Beschreibung
+ * des Datensatzes festgehalten und mittels der Funktion "Zeige Protokoll"
  * in Tabellenform ausgegeben werden.
  * ![ProtocolPage](https://raw.githubusercontent.com/Pulsar07/RcSetupTool/master/doc/img/RCST_ProtocolPage.png)
  *
@@ -276,20 +275,20 @@ static boolean ourIsMeasureActive=false;
 
 const int SERVO_PIN = D7;
 
-enum { 
-  RD_QR1_L, 
-  RD_QR1_R, 
-  RD_QR2_L, 
-  RD_QR2_R, 
-  RD_WK1_L, 
-  RD_WK1_R, 
-  RD_WK2_L, 
-  RD_WK2_R, 
-  RD_VL_L, 
-  RD_VL_R, 
-  RD_SR_1, 
-  RD_SR_2, 
-  RD_HR_1, 
+enum {
+  RD_QR1_L,
+  RD_QR1_R,
+  RD_QR2_L,
+  RD_QR2_R,
+  RD_WK1_L,
+  RD_WK1_R,
+  RD_WK2_L,
+  RD_WK2_R,
+  RD_VL_L,
+  RD_VL_R,
+  RD_SR_1,
+  RD_SR_2,
+  RD_HR_1,
   RD_HR_2,
   RD_SF_1,
   RD_SF_2,
@@ -532,7 +531,7 @@ void printServoRanges() {
 void readMotionSensor() {
   if (isI2C_MPU6050Addr()) {
     mpu.getMotion6(&ourAccelerometer_x, &ourAccelerometer_y, &ourAccelerometer_z, &gyro_x, &gyro_y, &gyro_z);
-  } 
+  }
 #ifdef SUPPORT_MMA8451
   else if (isI2C_MMA8451Addr()) {
     mma.read();
@@ -544,7 +543,6 @@ void readMotionSensor() {
 
   const static double smooth = 0.98d;
   // print out data
-  // Serial.println(ourAccelerometer_x);
   ourSmoothedAngle_x = irr_low_pass_filter(ourSmoothedAngle_x,
     atan2(ourAccelerometer_y, ourAccelerometer_z) * 180 / M_PI, smooth);
   ourSmoothedAngle_y = irr_low_pass_filter(ourSmoothedAngle_y,
@@ -926,7 +924,7 @@ void htmlShowProtocolTable() {
   for (int i=0; i < ourProtocolData.dataSetIdxUnused; i++) {
     table.concat("<tr>");
     servoDataSet_t *dataSet = &ourProtocolData.rudderData[i];
-    table.concat("<td>"); table.concat(dataSet->descr); 
+    table.concat("<td>"); table.concat(dataSet->descr);
     table.concat("/"); table.concat(servoFunctionIdx2Shortcut(dataSet->functionIdx)); table.concat("</td>");
     table.concat("<td>"); table.concat(get_percent_value(dataSet->limitLow)); table.concat("</td>");
     table.concat("<td>"); table.concat(dataSet->limitLow); table.concat("</td>");
@@ -1033,7 +1031,7 @@ void restoreProtocolDataSet(uint8_t aIdx) {
     servoDataSet_t *dataSet = &ourProtocolData.rudderData[dataSetIdx];
     ourProtocolData.datasetDescription = dataSet->descr;
     ourProtocolData.currentFunctionIdx = dataSet->functionIdx;
-  
+
     for (int i=0; i<CONFIG_SERVO_PRESET_MAX; i++) {
       ourConfig.servoPresets[i] = dataSet->servoPresets[i];
       ourProtocolData.currentPresetAngles[i] = dataSet->presetAngles[i];
@@ -1076,7 +1074,7 @@ String getResponse4Presets() {
   } else {
     retVal += String("id_servo_direction") + "=" + "unchecked" + MYSEP_STR;
   }
-  
+
   // rudder size
   retVal += String("id_rudderSize") + "=" + ourRudderSize + MYSEP_STR;
   return retVal;
@@ -1087,7 +1085,7 @@ String getResponse4Preset(uint8_t aPos) {
   if (aPos < CONFIG_SERVO_PRESET_MAX) {
     retVal += String("id_btn_set_pos_") + String(aPos) + "=" + toPercentage(getPreset(aPos)) + MYSEP_STR;
     float theAngle = ourProtocolData.currentPresetAngles[aPos];
-    retVal += String("id_btn_store_pos_") + String(aPos) + "="; 
+    retVal += String("id_btn_store_pos_") + String(aPos) + "=";
     if (theAngle == ANGLE_UNSET_VAL) {
       retVal += String("-") + MYSEP_STR;
     } else {
@@ -1115,7 +1113,7 @@ void storeProtocolDataSet(uint8_t aIdx) {
 
 int getProtocolDataSetIdx(int8_t aFunctionIdx) {
   for (int i=0; i < ourProtocolData.dataSetIdxUnused; i++) {
-    String currDescr = ourProtocolData.datasetDescription + aFunctionIdx; 
+    String currDescr = ourProtocolData.datasetDescription + aFunctionIdx;
     String existingDescr = ourProtocolData.rudderData[i].descr + ourProtocolData.rudderData[i].functionIdx;
     if (currDescr.equals(existingDescr)) {
       return i;
@@ -1371,7 +1369,7 @@ void setDataReq() {
         response += String("id_btn_store_limit_max") + "=" + String("limit") + MYSEP_STR;
       }
       response += String("id_btn_set_limit_max") + "=" + toPercentage(ourServoLimit[MAX_IDX]) + "%" + MYSEP_STR;
-    } 
+    }
   } else
   if ( name.equals("cmd_store_servo_pos")) {
     // value = "id_store_pos_0";
@@ -1381,7 +1379,7 @@ void setDataReq() {
       response += getResponse4Preset(pos);
     } else {
       Serial.print("ERROR:  illegal idx of store pos for : ");
-      Serial.println(value); 
+      Serial.println(value);
     }
   } else
   if ( name.equals("cmd_set_servo_pos")) {
@@ -1693,7 +1691,7 @@ void getDataReq() {
         }
       } else {
         Serial.print("ERROR:  illegal idx of store pos for : ");
-        Serial.println(argName); 
+        Serial.println(argName);
       }
     } else
     if (argName.equals("id_vendor_settings")) {
@@ -1745,7 +1743,7 @@ void getDataReq() {
 
 String servoFunctionIdx2Shortcut(int aIdx) {
   // "option_fd_QR-1-R",
-  //            10  
+  //            10
   return servoFunctionIdx2Def(aIdx).substring(10);
 }
 
@@ -1764,7 +1762,7 @@ int servoFunctionDef2Idx(String aDef) {
     }
   }
   Serial.print("ERROR: illegal function def : ");
-  Serial.println(aDef); 
+  Serial.println(aDef);
   return -1;
 }
 
@@ -1894,7 +1892,7 @@ void detectSensor() {
   // supported I2C devices / addresses
   #define I2C_ADDR_SIZE 4
   uint8_t I2CAddresses[I2C_ADDR_SIZE] = {
-    MPU6050ADDR1, MPU6050ADDR2, 
+    MPU6050ADDR1, MPU6050ADDR2,
 #ifdef SUPPORT_MMA8451
     MMA8451ADDR1, MMA8451ADDR2,
 #endif
