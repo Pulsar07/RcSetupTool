@@ -18,8 +18,9 @@
 #include "Config.h"
 
 // !!!!!!!!!!!!!!!!!!
-// if you enable this define, the lib sligthly patched lib
-// Adafruit_MMA8451_Library in the provided libs directory
+// if you enable this define, the sligthly patched lib
+// Adafruit_MMA8451_Library from 
+// https://github.com/Pulsar07/Adafruit_MMA8451_Library
 // has to be added to the arduino library folder
 // #define SUPPORT_MMA8451
 // !!!!!!!!!!!!!!!!!!
@@ -46,7 +47,9 @@
 // V0.13 : support for all ASCII special chars in SSID and passwords
 //         more enhanced preset and protocol behaviour
 // V0.14 : provided patched Adafruit_MMA8451_Library in the repository
-#define APP_VERSION "V0.14"
+// V0.15 : fixed support for USE_MPU6050_MPU
+
+#define APP_VERSION "V0.15"
 
 /**
  * \file RcSetupTool.ino
@@ -350,6 +353,16 @@ int8_t ourServoDirection = 1;
 boolean ourWheelActivation = false;
 uint8_t ourWheelFactor = 1;
 int ourServoLimit[2];
+
+#ifdef USE_MPU6050_MPU
+#define INTERRUPT_PIN 15 // use pin 15 on ESP8266
+bool dmpReady = false;  // set true if DMP init was successful
+uint8_t mpuIntStatus;   // holds actual interrupt status byte from MPU
+uint8_t devStatus;      // return status after each device operation (0 = success, !0 = error)
+uint16_t packetSize;    // expected DMP packet size (default is 42 bytes)
+uint16_t fifoCount;     // count of all bytes currently in FIFO
+uint8_t fifoBuffer[64]; // FIFO storage buffer
+#endif
 
 ESP8266WebServer server(80);    // Server Port  hier einstellen
 
