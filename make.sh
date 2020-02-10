@@ -83,6 +83,9 @@ function compile {
   elif [ $BOARD =  "PRO_MINI_8MHZ" ] ; then
     /usr/share/arduino/arduino-builder -compile -hardware /usr/share/arduino/hardware -hardware $HOME/.arduino15/packages -tools /usr/share/arduino/tools-builder -tools $HOME/.arduino15/packages -built-in-libraries /usr/share/arduino/libraries -libraries $HOME/Links/stransky/dev/arduino/libraries -fqbn=arduino:avr:pro:cpu=8MHzatmega328 -ide-version=10805 -build-path $TEMP_FOLDER -warnings=default -prefs=build.warn_data_percentage=75 -prefs=runtime.tools.avr-gcc.path=$PM_GCC_PATH -prefs=runtime.tools.avrdude.path=$PM_DUDE_PATH -prefs=runtime.tools.arduinoOTA.path=$PM_OTA_PATH -verbose $MYDIR/*.ino
   fi
+  if [ -d ./bin ] ; then
+    cp $TEMP_FOLDER/*.ino.bin ./bin/
+  fi
 }
 
 function upload {
