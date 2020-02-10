@@ -221,11 +221,11 @@
  *
  * \subsection hmi_subsec_de_flash  Bin-Datei direkt zum Flashen
  *  ist im bin-Verzeichnis verfügbar.
- *  Download NodeMCU-Flasher (z. Bspl. Von hier: https://github.com/marcelstoer/nodemcu-pyflasher/releases/tag/v4.0  )
+ *  Download NodeMCU-Flasher (z. Bspl. Von hier: https://github.com/marcelstoer/nodemcu-pyflasher/releases/tag/v4.0  )<br>
  * ![UploadBin](https://raw.githubusercontent.com/Pulsar07/RcSetupTool/master/doc/img/RCST_UploadBin.jpg)
- * Flasher-Programm starten und Port wählen, Bin-Datei öffnen und 115200 Baud einstellen.
- * Flash-Button drücken
- * Das war es ;-)
+ * <br>Flasher-Programm starten und Port wählen, Bin-Datei öffnen und 115200 Baud einstellen.<br>
+ * Flash-Button drücken.<br>
+ * Das war es ;-)<br>
  */
 
 

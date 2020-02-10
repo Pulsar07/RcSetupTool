@@ -230,10 +230,13 @@ Technik](http://www.so-fa.de/nh/RcSetupTool)
 
 ist im bin-Verzeichnis verfügbar. Download NodeMCU-Flasher (z. Bspl. Von
 hier:
-<https://github.com/marcelstoer/nodemcu-pyflasher/releases/tag/v4.0> )
-![UploadBin](https://raw.githubusercontent.com/Pulsar07/RcSetupTool/master/doc/img/RCST_UploadBin.jpg)
+<https://github.com/marcelstoer/nodemcu-pyflasher/releases/tag/v4.0>
+)  
+![UploadBin](https://raw.githubusercontent.com/Pulsar07/RcSetupTool/master/doc/img/RCST_UploadBin.jpg)  
 Flasher-Programm starten und Port wählen, Bin-Datei öffnen und 115200
-Baud einstellen. Flash-Button drücken Das war es ;-)
+Baud einstellen.  
+Flash-Button drücken.  
+Das war es ;-)  
 
 </div>
 
