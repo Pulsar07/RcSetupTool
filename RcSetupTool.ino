@@ -48,8 +48,9 @@
 //         more enhanced preset and protocol behaviour
 // V0.14 : provided patched Adafruit_MMA8451_Library in the repository
 // V0.15 : fixed support for USE_MPU6050_MPU
+// V0.16 : fixed layout problems in angle measure view and bug in audio context for reference value handling
 
-#define APP_VERSION "V0.15"
+#define APP_VERSION "V0.16"
 
 /**
  * \file RcSetupTool.ino
@@ -1460,6 +1461,7 @@ void setDataReq() {
 }
 
 void getDataReq() {
+  // #define DO_LOG_GET_DQ
   // Serial.print(server.client().remoteIP().toString());
   #ifdef DO_LOG_GET_DQ
   Serial.print(" : getDataReq() :");

@@ -121,17 +121,25 @@ table {
   font-weight:bold;
 }
 
-.col-declaration {
+.col-declaration, .col-angleView-declaration {
   text-align: right;
   float: left;
   width: 25%;
 }
 
-.col-full {
+.col-angleView-declaration {
+  width: 40%;
+}
+
+.col-full, .col-angleView-full{
   text-align: left;
   float: right;
   width: 75%;
   padding-left: 5px;
+}
+
+.col-angleView-full{
+  width: 55%;
 }
 
 .col-full input[type=number] {
@@ -440,7 +448,7 @@ a.limiter {
 /* Responsive layout - when the screen is less than 600px wide, make the two columns stack on top of each other instead of next to each other
 @media screen and (max-width: 600px) {
 */
-@media (max-aspect-ratio: 8/5) {
+@media (max-aspect-ratio: 5/5) {
   body {
     background: #66f;
     font-family: Arial, Helvetica, sans-serif;
@@ -479,6 +487,14 @@ a.limiter {
     font-size: .7em;
     width: 15%;
   }
+
+  .col-angleView-declaration {
+    margin-top: 0;
+    width: 100%;
+    background-color: #ddf;
+    padding: 5px;
+    text-align: left;
+  }
   
   .col-declaration-long {
     text-align: center;
@@ -488,6 +504,11 @@ a.limiter {
   .col-button {
     text-align: center;
     width: 100%;
+  }
+  
+  .col-angleView-full {
+    width: 100%;
+    text-align: left;
   }
   
   .col-full {
