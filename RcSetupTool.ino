@@ -49,8 +49,9 @@
 // V0.14 : provided patched Adafruit_MMA8451_Library in the repository
 // V0.15 : fixed support for USE_MPU6050_MPU
 // V0.16 : fixed layout problems in angle measure view and bug in audio context for reference value handling
+// V0.161 : fixed CTRL-Key handling for Macs
 
-#define APP_VERSION "V0.16"
+#define APP_VERSION "V0.161"
 
 /**
  * \file RcSetupTool.ino
@@ -146,7 +147,7 @@
  * bei 45° Ausschlag messen können, was bei einer 60mm Rudertiefe von 60mm einen Fehler von kleiner als 0.5mm ergibt.
  * Zudem sind diverse Anzeigegenauigkeiten für die Winkel und die Ruderwegs-Messung auswählbar.
  * Die Anzeige hat zwar immer 2 Dezimalstellen, intern wird aber gerundet.
- *  * Experten-Einstellungen: Diese Seite wird erreicht indem man den "Einstellungen"-Button zusammen mit der CTRL-Taste clickt
+ *  * Experten-Einstellungen: Diese Seite wird erreicht indem man auf den "Einstellungen"-Button zusammen mit der CTRL-Taste klickt
  *   * Kalibrierung: Damit der MPU-6050 allerdings diese Genauigkeit erreicht, muss
  * er nachträglich kalibriert werden. Die Software unterstützt diese Funktion und
  * kann die Werte intern speichern. Zur Kalibrierung muss die GY-521-Sensorplatine
