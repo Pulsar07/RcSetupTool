@@ -151,7 +151,7 @@ const char SCRIPT[] PROGMEM = R"=====(
     };
     var requestLocation="getDataReq?";
     for (var i = 0; i < arguments.length; i++) {
-       requestLocation += arguments[i]+"&";
+       requestLocation += arguments[i]+"=0&";
     }
     requestLocation = requestLocation.substring(0,requestLocation.length-1);
     xhttp.open("GET", requestLocation, true);

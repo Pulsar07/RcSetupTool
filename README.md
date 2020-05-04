@@ -132,8 +132,7 @@ Authors aus:
         ergibt. Zudem sind diverse Anzeigegenauigkeiten für die Winkel
         und die Ruderwegs-Messung auswählbar. Die Anzeige hat zwar immer
         2 Dezimalstellen, intern wird aber gerundet.
-      - Experten-Einstellungen: Diese Seite wird erreicht indem man auf
-        den "Einstellungen"-Button zusammen mit der CTRL-Taste klickt
+      - Experten-Einstellungen:
           - Kalibrierung: Damit der MPU-6050 allerdings diese
             Genauigkeit erreicht, muss er nachträglich kalibriert
             werden. Die Software unterstützt diese Funktion und kann die
