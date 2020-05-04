@@ -320,7 +320,7 @@ const char ADMIN_page[] PROGMEM = R"=====(
     <div class="row">
      <div class="col-setting-values">
       <button type="button" id="id_reset" name="cmd_resetConfig" value="yes" onclick="sendNameValue(this.name, this.value)">
-       Alles zur&uuml;cksetzten</button>
+       Alles zur&uuml;cksetzen</button>
      </div>
      <div class="col-setting-descr">
       <label for="id_reset">
