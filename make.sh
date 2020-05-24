@@ -12,15 +12,18 @@ if [ -f $MYDIR/prj.ini ] ; then
   source $MYDIR/prj.ini 
 fi
 
-USBPort=$( dmesg| grep ch341 | tail -1  )
+USBPort=$( dmesg| grep -e ch341 -e cp210 | tail -1  )
 USBPort="ttyUSB${USBPort##*ttyUSB}"
 if [ "${USBPort:0:3}" != "tty" ] ; then 
-  USBPort=$( dmesg| grep ch341 | tail -1 | cut -d " " -f 9 )
+  USBPort=$( dmesg| grep -e ch341 -e cp210 | tail -1 | cut -d " " -f 9 )
 fi
 
 if [ "${USBPort:0:3}" != "tty" ] ; then 
   USBPort=""
 fi
+
+
+echo "USBPort: $USBPort"
 
 TEMP_FOLDER=/tmp/arduino_build_make
 
@@ -74,14 +77,23 @@ function compile {
   ESP_PYTHON_PATH=${ESP_PYTHON_PATH%/placeholder_for_arduino}
   ESP_TOOLS_PATH=$( find $HOME/.arduino*/packages/esp8266/hardware/esp8266/ -type f -name "upload.py" )
   ESP_TOOLS_PATH=${ESP_TOOLS_PATH%/upload.py}
+  A15="/home/stransky/.arduino15/"
+
+  if [ -x /usr/bin/arduino-builder ] ; then
+    ARDUINO_PATH=/usr/bin
+  else
+    ARDUINO_PATH=/usr/share/arduino
+  fi
 
   if [ $BOARD =  "NODE_MCU_1.0" ] ; then
-    /usr/share/arduino/arduino-builder -compile -hardware /usr/share/arduino/hardware -hardware $HOME/.arduino15/packages -tools /usr/share/arduino/tools-builder -tools $HOME/.arduino15/packages -built-in-libraries /usr/share/arduino/libraries -libraries $HOME/Links/stransky/dev/arduino/libraries -fqbn=esp8266:esp8266:nodemcuv2:xtal=80,vt=flash,exception=disabled,ssl=all,eesz=4M,ip=lm2f,dbg=Disabled,lvl=None____,wipe=none,baud=115200 -build-path $TEMP_FOLDER -warnings=default -prefs=build.warn_data_percentage=75 -prefs=runtime.tools.python.path=$ESP_PYTHON_PATH -prefs=runtime.tools.xtensa-lx106-elf-gcc.path=$HOME/.arduino15/packages/esp8266/tools/xtensa-lx106-elf-gcc/2.5.0-3-20ed2b9 -prefs=runtime.tools.mkspiffs.path=$HOME/.arduino15/packages/esp8266/tools/mkspiffs/2.5.0-3-20ed2b9 ./*.ino
+    echo $ARDUINO_PATH/arduino-builder -compile -hardware /usr/share/arduino/hardware -hardware $A15/packages -tools $A15/packages -built-in-libraries /usr/share/arduino/libraries -libraries $A15/../Links/arduino/libraries -fqbn=esp8266:esp8266:nodemcuv2:xtal=80,vt=flash,exception=disabled,ssl=all,eesz=4M,ip=lm2f,dbg=Disabled,lvl=None____,wipe=none,baud=115200 -ide-version=10812 -build-path $TEMP_FOLDER -warnings=default -prefs=build.warn_data_percentage=75 -prefs=runtime.tools.xtensa-lx106-elf-gcc.path=$A15/packages/esp8266/tools/xtensa-lx106-elf-gcc/2.5.0-3-20ed2b9 -prefs=runtime.tools.xtensa-lx106-elf-gcc-2.5.0-3-20ed2b9.path=$A15/packages/esp8266/tools/xtensa-lx106-elf-gcc/2.5.0-3-20ed2b9 -prefs=runtime.tools.python.path=$A15/packages/esp8266/tools/python/3.7.2-post1 -prefs=runtime.tools.python-3.7.2-post1.path=$A15/packages/esp8266/tools/python/3.7.2-post1 -prefs=runtime.tools.mkspiffs.path=$A15/packages/esp8266/tools/mkspiffs/2.5.0-3-20ed2b9 -prefs=runtime.tools.mkspiffs-2.5.0-3-20ed2b9.path=$A15/packages/esp8266/tools/mkspiffs/2.5.0-3-20ed2b9 $OPTIONAL_BUILD_PREFS -verbose ./*.ino
+    $ARDUINO_PATH/arduino-builder -compile -hardware /usr/share/arduino/hardware -hardware $A15/packages -tools $A15/packages -built-in-libraries /usr/share/arduino/libraries -libraries $A15/../Links/arduino/libraries -fqbn=esp8266:esp8266:nodemcuv2:xtal=80,vt=flash,exception=disabled,ssl=all,eesz=4M,ip=lm2f,dbg=Disabled,lvl=None____,wipe=none,baud=115200 -ide-version=10812 -build-path $TEMP_FOLDER -warnings=default -prefs=build.warn_data_percentage=75 -prefs=runtime.tools.xtensa-lx106-elf-gcc.path=$A15/packages/esp8266/tools/xtensa-lx106-elf-gcc/2.5.0-3-20ed2b9 -prefs=runtime.tools.xtensa-lx106-elf-gcc-2.5.0-3-20ed2b9.path=$A15/packages/esp8266/tools/xtensa-lx106-elf-gcc/2.5.0-3-20ed2b9 -prefs=runtime.tools.python.path=$A15/packages/esp8266/tools/python/3.7.2-post1 -prefs=runtime.tools.python-3.7.2-post1.path=$A15/packages/esp8266/tools/python/3.7.2-post1 -prefs=runtime.tools.mkspiffs.path=$A15/packages/esp8266/tools/mkspiffs/2.5.0-3-20ed2b9 -prefs=runtime.tools.mkspiffs-2.5.0-3-20ed2b9.path=$A15/packages/esp8266/tools/mkspiffs/2.5.0-3-20ed2b9 $OPTIONAL_BUILD_PREFS -verbose ./*.ino
+
   elif [ $BOARD =  "PRO_MINI_16MHZ" ] ; then
-    /usr/share/arduino/arduino-builder -compile -hardware /usr/share/arduino/hardware -hardware $HOME/.arduino15/packages -tools /usr/share/arduino/tools-builder -tools $HOME/.arduino15/packages -built-in-libraries /usr/share/arduino/libraries -libraries $HOME/Links/stransky/dev/arduino/libraries -fqbn=arduino:avr:pro:cpu=16MHzatmega328 -ide-version=10805 -build-path $TEMP_FOLDER -warnings=default -prefs=build.warn_data_percentage=75 -prefs=runtime.tools.avr-gcc.path=$PM_GCC_PATH -prefs=runtime.tools.avrdude.path=$PM_DUDE_PATH -prefs=runtime.tools.arduinoOTA.path=$PM_OTA_PATH -verbose $MYDIR/*.ino
+    $ARDUINO_PATH/arduino-builder -compile $OPTIONAL_BUILD_PREFS -hardware /usr/share/arduino/hardware -hardware $HOME/.arduino15/packages -tools /usr/share/arduino/tools-builder -tools $HOME/.arduino15/packages -built-in-libraries /usr/share/arduino/libraries -libraries $HOME/Links/stransky/dev/arduino/libraries -fqbn=arduino:avr:pro:cpu=16MHzatmega328 -ide-version=10805 -build-path $TEMP_FOLDER -warnings=default -prefs=build.warn_data_percentage=75 -prefs=runtime.tools.avr-gcc.path=$PM_GCC_PATH -prefs=runtime.tools.avrdude.path=$PM_DUDE_PATH -prefs=runtime.tools.arduinoOTA.path=$PM_OTA_PATH -verbose $MYDIR/*.ino
 
   elif [ $BOARD =  "PRO_MINI_8MHZ" ] ; then
-    /usr/share/arduino/arduino-builder -compile -hardware /usr/share/arduino/hardware -hardware $HOME/.arduino15/packages -tools /usr/share/arduino/tools-builder -tools $HOME/.arduino15/packages -built-in-libraries /usr/share/arduino/libraries -libraries $HOME/Links/stransky/dev/arduino/libraries -fqbn=arduino:avr:pro:cpu=8MHzatmega328 -ide-version=10805 -build-path $TEMP_FOLDER -warnings=default -prefs=build.warn_data_percentage=75 -prefs=runtime.tools.avr-gcc.path=$PM_GCC_PATH -prefs=runtime.tools.avrdude.path=$PM_DUDE_PATH -prefs=runtime.tools.arduinoOTA.path=$PM_OTA_PATH -verbose $MYDIR/*.ino
+    $ARDUINO_PATH/arduino-builder -compile $OPTIONAL_BUILD_PREFS -hardware /usr/share/arduino/hardware -hardware $HOME/.arduino15/packages -tools /usr/share/arduino/tools-builder -tools $HOME/.arduino15/packages -built-in-libraries /usr/share/arduino/libraries -libraries $HOME/Links/stransky/dev/arduino/libraries -fqbn=arduino:avr:pro:cpu=8MHzatmega328 -ide-version=10805 -build-path $TEMP_FOLDER -warnings=default -prefs=build.warn_data_percentage=75 -prefs=runtime.tools.avr-gcc.path=$PM_GCC_PATH -prefs=runtime.tools.avrdude.path=$PM_DUDE_PATH -prefs=runtime.tools.arduinoOTA.path=$PM_OTA_PATH -verbose $MYDIR/*.ino
   fi
   if [ -d ./bin ] ; then
     cp $TEMP_FOLDER/*.ino.bin ./bin/
