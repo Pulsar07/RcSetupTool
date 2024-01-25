@@ -6,6 +6,79 @@
 #include <ESP8266mDNS.h>
 #include <DNSServer.h>
 #include <Servo.h>
+
+// *** CONFIGURAITON ***
+// Used Ports as as summary (WiFi-Kit-8)
+/*
+D0 : OLED Reset
+D1 : I2C-SCL OLED + GY521
+D2 : I2C-SDA OLED + GY521
+D3 : Drehwinkelgeber CLK
+D4 : free
+D5 : ServoOut
+D6 : Drehwinkelgeber PushButton
+D7 : Drehwinkelgeber DT
+D8 : Buzzer
+*/
+
+#define WIFI_KIT_8 
+#define OLED
+#define CURRENT_SENSOR
+#define ROTARY_ENCODER
+#define SERVO_PIN D5
+#define PIN_BUZZER_OUT D8
+#define PIN_PUSH_BUTTON D6
+
+// **** Voltage measurement settings ****
+
+// analog input pin
+#define VOLTAGE_PIN                   A0
+
+// supply voltage
+
+static const char myName[] = "RcSetupTool";
+long ourDebug1;
+long ourDebug2;
+long ourDebug3;
+
+
+
+#ifdef OLED
+#include <U8g2lib.h>        // Universal 8bit Graphics Library (https://github.com/olikraus/u8g2/)
+
+#ifdef WIFI_KIT_8 
+  // Wifi Kit 8 has a fixed wired 128x32 display 
+  // U8G2_SSD1306_128X32_UNIVISION_1_HW_I2C ourOLED(U8G2_R0, /* reset=*/ 16, /* clock=*/ 5, /* data=*/ 4); 
+  U8G2_SSD1306_128X32_UNIVISION_1_HW_I2C ourOLED(U8G2_R0, /* reset=*/ D0, /* clock=*/ D1, /* data=*/ D2); 
+#else 
+  U8G2_SH1106_128X64_NONAME_1_HW_I2C ourOLED(U8G2_R0, /* reset=*/ U8X8_PIN_NONE, /* clock=*/ D3, /* data=*/ D4); 
+  //U8G2_SSD1306_128X64_NONAME_1_HW_I2C ourOLED(U8G2_R0, /* reset=*/ U8X8_PIN_NONE, /* clock=*/ D3, /* data=*/ D4); 
+#endif 
+#endif
+
+#ifdef ROTARY_ENCODER
+#include <Encoder.h>
+Encoder ourRotaryEncoder(D7, D3);
+#define RE_MULITPLIER_SLOW 1
+#define RE_MULITPLIER_NORMAL 5
+#define RE_MULITPLIER_FAST 15
+long ourRotaryEncoderPosition=0;
+long ourRotaryMenuPosition=0;
+uint8_t ourRotaryEncoderMultiplier;
+
+#include <Bounce2.h>
+Bounce2::Button ourPushButton = Bounce2::Button();
+#endif
+
+String ourOLEDLogString;
+
+
+#define OTA
+#ifdef OTA
+#include <ArduinoOTA.h>
+#endif
+
+
 #include "htmlAdminPage.h"
 #include "htmlExpertPage.h"
 #include "htmlMenuPage.h"
@@ -16,6 +89,7 @@
 #include "htmlScript.h"
 #include "htmlStyles.h"
 #include "Config.h"
+
 
 // !!!!!!!!!!!!!!!!!!
 // if you enable this define, the sligthly patched lib
@@ -51,8 +125,9 @@
 // V0.16 : fixed layout problems in angle measure view and bug in audio context for reference value handling
 // V0.161 : fixed CTRL-Key handling for Macs
 // V0.162 : expert menu now as a separate button, and AJAX get requets will work with ESP32 web server
+// V0.170 : first draft: support for working OLED GUI for servo page, angle page and settings for angle tara, rudder depth, servo steps and servo null value
 
-#define APP_VERSION "V0.162"
+#define APP_VERSION "V0.170"
 
 /**
  * \file RcSetupTool.ino
@@ -281,12 +356,102 @@ static float ourNullAmpl;
 static float ourMinAmpl;
 static float ourMaxAmpl;
 static boolean ourIsMeasureActive=false;
+float mySmoothedCurrent = 0.0f;
+float ourServoCurrent;
+
+enum ToolContext {
+  BASE_MENU_PAGE,
+  SERVO_MENU_PAGE,
+  SERVO_PAGE,
+  ANGLE_SENSOR_PAGE,
+  ADMIN_PAGE,
+  SET_SERVO_STEPS,
+  SET_RUDDER_DEPTH,
+  EXPERT_ADMIN_PAGE,
+  DEBUG_PAGE,
+};
+
+ToolContext ourContext=BASE_MENU_PAGE;
+const char* ourBaseMenu0 = "0:Servotester";
+const char* ourBaseMenu1 = "1:Winkelmesser";
+const char* ourBaseMenu2 = "2:Debug-Anzeige";
+const char* ourBaseMenuItems[] = {ourBaseMenu0, ourBaseMenu1, ourBaseMenu2};
+const uint8_t ourBaseMenuSize = sizeof(ourBaseMenuItems) / sizeof(char*);;
+
+const char* ourServoMenu0 = "0:Servo-Pos=0%";
+const char* ourServoMenu1 = "1:Tara-Winkel";
+const char* ourServoMenu2 = "2:Setze Rudertiefe";
+const char* ourServoMenu3 = "3:Setze Servoschritte";
+const char* ourServoMenu4 = "4:zurück";
+const char* ourServoMenuItems[] = {ourServoMenu0, ourServoMenu1, ourServoMenu2, ourServoMenu3, ourServoMenu4};
+const uint8_t ourServoMenuSize = sizeof(ourServoMenuItems) / sizeof(char*);;
 
 #define MIN_PULSE_WITDH 700 // us
 #define MAX_PULSE_WITDH 2300 // us
 
+// LOGGING LOGGING
+enum LogSeverity {
+  LS_START=0,
+  DEBUG,
+  INFO,
+  WARNING,
+  ERROR,
+  LS_END
+};
 
-const int SERVO_PIN = D7;
+#define LOG_MOD_HTTP 0x01
+#define LOG_MOD_PERF 0x02
+#define LOG_MOD_RTEST 0x04
+#define LOG_MOD_RADIO 0x08
+#define LOG_MOD_5 0x10
+#define LOG_MOD_6 0x20
+#define LOG_MOD_7 0x40
+#define LOG_MOD_8 0x80
+
+LogSeverity ourLogSeverity=DEBUG;
+  
+byte ourLogModules = 0;
+    
+void setLogModule(byte aModule) {
+  ourLogModules = ourLogModules | aModule;
+} 
+// some forward declarations
+  
+void setupLog()  {
+  setLogModule(LOG_MOD_HTTP);
+  setLogModule(LOG_MOD_PERF);
+  setLogModule(LOG_MOD_RTEST);
+  setLogModule(LOG_MOD_RADIO);
+}
+ 
+#define LOGGY3(a, b, c) logMsg(a, b, c)
+#define LOGGY2(a, b) logMsg(a, b) 
+// #define LOGGY2(a, b) 
+    
+void logMsg(LogSeverity aSeverity, String aMessage);
+void log_printSecond();
+  
+void logMsg(byte aModule, LogSeverity aSeverity, String aMessage) {
+  if (aModule & ourLogModules) {
+    logMsg(aSeverity, aMessage);
+  }
+}
+
+void logMsg(LogSeverity aSeverity, String aMessage) {
+  if (aSeverity >= ourLogSeverity) {
+    log_printSecond();
+    Serial.print(myName);
+    Serial.print(':');
+    Serial.print(aMessage);
+    Serial.println();
+  }
+}
+
+void log_printSecond() {
+  char buf[25];
+  snprintf (buf, 25, "%08d: ", millis());
+  Serial.print(buf);
+}
 
 enum {
   RD_QR1_L,
@@ -381,6 +546,7 @@ void setDefaultConfig();
 void setup()
 {
   delay(1000);
+  setupLog();
   Serial.begin(115200);
   delay(1000);
   Serial.println();
@@ -405,23 +571,543 @@ void setup()
     initMMA8451();
 #endif
   }
+  #ifdef OLED
+  setupDisplay();
+  #endif
 
   setupWiFi();
   setupWebServer();
   initServo();
   initProtocolData();
+  #ifdef ROTARY_ENCODER
+  setupRotaryEncoder();
+  setupPushButton();
+  #endif
+  setupBuzzer();
+  if (WiFi.status() == WL_CONNECTED) {
+    #ifdef OTA
+    setup_ota();
+    #endif
+  }
+
 }
+
+#ifdef OLED
+const uint8_t *oledFontLarge;
+const uint8_t *oledFontBig;
+const uint8_t *oledFontNormal;
+const uint8_t *oledFontSmall;
+const uint8_t *oledFontTiny;
+const uint8_t *oledFontIcon;
+  
+  
+void setupDisplay() {
+  // Wifi Kit 8 has a fixed wired 128x32 display 
+  ourOLED.begin();
+  // ourOLED.enableUTF8Print();	
+  int oledDisplayHeight = ourOLED.getDisplayHeight();
+  int oledDisplayWidth = ourOLED.getDisplayWidth();
+  logMsg(INFO, F("init OLED display: ") + String(oledDisplayWidth) + String(F("x")) + String(oledDisplayHeight));
+  oledFontLarge  = u8g2_font_helvB18_tr;
+  oledFontLarge  = u8g2_font_profont17_tf;
+  oledFontBig    = u8g2_font_helvR12_tr;
+  oledFontNormal = u8g2_font_helvR10_tr;
+  oledFontSmall  = u8g2_font_5x7_tr; 
+  oledFontTiny   = u8g2_font_4x6_tr;
+  oledFontIcon   = u8g2_font_m2icon_7_tf;
+  ourOLED.firstPage();
+  do {
+    showHello();
+  } while ( ourOLED.nextPage() );
+    
+}   
+
+void showHello() {
+  ourOLED.setFont(oledFontNormal);
+  ourOLED.setCursor(0, 15);
+  ourOLED.print("Hello I am ");
+  ourOLED.setCursor(0, 32);
+  ourOLED.print(myName);
+  ourOLED.print(" ");
+  ourOLED.print(APP_VERSION);
+}
+
+void showOLEDAngleSensorPage() {
+  ourOLED.setDrawColor(1);
+  ourOLED.setFontMode(0);
+  ourOLED.setFont(oledFontLarge);
+  String angle = String(getRoundedAngle(), 1); 
+  // ourOLED.setCursor(120-ourOLED.getStrWidth(angle.c_str()), 28);
+  ourOLED.setCursor(0, 28);
+  ourOLED.print(angle.c_str());
+  ourOLED.print(":");
+  ourOLED.print((char) 176);
+  ourOLED.print((char) 58);
+  ourOLED.print(":");
+}
+
+/**
+  return the math result of a modulo operation instead of the symmetric (as implemented in the %-operator
+*/
+int8_t getModulo(long aDivident, uint8_t aDivisor) {
+  // Umrechnung der Modulo Resultate von der in C++ implementierten symmetrischen Modulo-Variante in die mahtematische Variante
+  return ((aDivident % aDivisor) + aDivisor) % aDivisor;
+}
+
+void showOLEDMenu(const char* aItems[], uint8_t aNumItems) {
+  ourOLED.drawBox(0, 11, 128, 10);
+  ourOLED.setDrawColor(2);
+  ourOLED.setFontMode(1);
+  ourOLED.setFont(oledFontNormal);
+ 
+  for (int8_t i=-1; i<2; i++) {
+    ourOLED.drawStr(0,21+i*11, aItems[getModulo(ourRotaryMenuPosition+i, aNumItems)]);
+  }
+}
+
+void showOLEDDebugInfo() {
+  ourOLED.setFont(oledFontNormal);
+  ourOLED.setCursor(0, 8);
+  ourOLED.print(F("D1:"));
+  ourOLED.print(ourDebug1);
+  ourOLED.setCursor(0, 16);
+  ourOLED.print(F("D2:"));
+  ourOLED.print(ourDebug2);
+  ourOLED.setCursor(0, 24);
+  ourOLED.print(F("D3:"));
+  ourOLED.print(ourDebug3);
+}
+
+void showOLEDSetServoSteps() {
+  ourOLED.setFont(oledFontNormal);
+  ourOLED.setCursor(0, 15);
+  ourOLED.print("Servo-Steps=");
+  ourOLED.print(String(ourRotaryEncoderMultiplier));
+  ourOLED.print("%");
+}
+
+void showOLEDSetRudderDepth() {
+  ourOLED.setFont(oledFontNormal);
+  ourOLED.setCursor(0, 15);
+  ourOLED.print("Rudertiefe=");
+  ourOLED.print(String(ourRudderSize, 1));
+  ourOLED.print("mm");
+}
+
+void showOLEDServoPositionPage(int16_t aPosition) {
+  ourOLED.setDrawColor(1);
+  ourOLED.setFontMode(0);
+  ourOLED.setFont(oledFontLarge);
+  // ourOLED.setCursor(22, 24);
+  // ourOLED.print(aPosition);
+  // ourOLED.print(F("%"));
+  String position = String(aPosition) + F("%");
+  ourOLED.setCursor(128-ourOLED.getStrWidth(position.c_str()), 24);
+  ourOLED.print(position.c_str());
+  ourOLED.setFont(oledFontSmall);
+  ourOLED.setCursor(20, 32);
+  switch(ourRotaryEncoderMultiplier) {
+    case RE_MULITPLIER_SLOW:
+      ourOLED.print(F("."));
+      break;
+    case RE_MULITPLIER_NORMAL:
+      ourOLED.print(F("o"));
+      break;
+    case RE_MULITPLIER_FAST:
+      ourOLED.print(F("O"));
+      break;
+  } 
+  ourOLED.print(F(":"));
+  ourOLED.print(F("I="));
+  ourOLED.print(ourServoCurrent, 1);
+  ourOLED.print(F("A"));
+  ourOLED.print(F(":Raw I="));
+  ourOLED.print(mySmoothedCurrent);
+  // showServoPosition(0, 13, 64, 5, (150.0f+aPosition)/300);
+  showServoPositionVertical(0, 0, 18, 32, (150.0f-aPosition)/300);
+
+  ourOLED.setCursor(24, 7);
+  ourOLED.setFont(oledFontSmall);
+  String angle = String("Winkel=") + String(getRoundedAngle(), 1) + String("°"); 
+  ourOLED.print(angle.c_str());
+}
+
+void showServoPositionVertical(int x, int y, int w, int h, float value) {
+    ourOLED.drawFrame(x, y, w,  h);
+    ourOLED.drawBox(x + 2, y + 2, (w - 4),  (h - 3) * value);
+}
+
+void showServoPosition(int x, int y, int w, int h, float value) {
+    ourOLED.drawFrame(x, y, w,  h);
+    ourOLED.drawBox(x + 2, y + 2, (w - 4) * value,  h - 3);
+}
+
+void updateOLED(unsigned long aNow) {
+  static unsigned long last=0;
+  #define OLED_REFRESH_CYCLE 100
+  if (aNow < last) {
+    return;
+  }
+  last = aNow + OLED_REFRESH_CYCLE;
+
+  ourOLED.firstPage();
+  do {
+    switch (ourContext) {
+      case SERVO_PAGE:
+        showOLEDServoPositionPage(getServoPosInPercent());
+        break;
+      case ANGLE_SENSOR_PAGE:
+        showOLEDAngleSensorPage();
+        break;
+      case SERVO_MENU_PAGE:
+        showOLEDMenu(ourServoMenuItems, ourServoMenuSize);
+        break;
+      case DEBUG_PAGE:
+        showOLEDDebugInfo();
+        break;
+      case SET_SERVO_STEPS:
+        showOLEDSetServoSteps();
+        break;
+      case SET_RUDDER_DEPTH:
+        showOLEDSetRudderDepth();
+        break;
+      case BASE_MENU_PAGE:
+      default: // MENU
+        showOLEDMenu(ourBaseMenuItems, ourBaseMenuSize);
+        break;
+    } 
+  } while ( ourOLED.nextPage() );
+
+}
+
+#endif
+
+#ifdef ROTARY_ENCODER
+
+
+
+void setupRotaryEncoder() {
+  ourRotaryEncoderMultiplier = RE_MULITPLIER_NORMAL;
+}
+void setupPushButton() {
+  // BUTTON SETUP 
+  // INPUT_PULLUP for bare ourSignalButton connected from GND to input pin
+  ourPushButton.attach(PIN_PUSH_BUTTON, INPUT); // USE EXTERNAL PULL-UP
+
+  // DEBOUNCE INTERVAL IN MILLISECONDS
+  ourPushButton.interval(50);
+  
+  // INDICATE THAT THE LOW STATE CORRESPONDS TO PHYSICALLY PRESSING THE BUTTON
+  ourPushButton.setPressedState(LOW);
+} 
+
+void updatePushButton(unsigned long aNow) {
+  ourPushButton.update();
+
+  static unsigned long history[5] = {0UL};;
+  static unsigned long reactOnMultiplePressed = 0;
+  static uint8_t buttonCnt=0;
+  
+  #define CLEAR_HISTORY history[0] = 0L
+  #define MULTI_PRESS_TIMERANGE 1500
+  #define MULTI_PRESS_REACTION_TIME 700
+
+  // save the button press history
+  boolean buttonPressed = ourPushButton.pressed();
+  if (buttonPressed) {
+    for (int i=4; i>0; i--) {
+      history[i] = history[i-1];
+    }
+    history[0] = aNow;
+
+    buttonCnt=0;
+    for (int i=0; i<5; i++) {
+      if ((aNow - history[i]) < MULTI_PRESS_TIMERANGE) {
+         buttonCnt++;
+      } else {
+        break;
+      }
+    }
+    logMsg(INFO, F("Button pressed: ") + String(buttonCnt));
+    reactOnMultiplePressed = history[buttonCnt-1] + MULTI_PRESS_REACTION_TIME;
+
+  }
+    
+
+  if (reactOnMultiplePressed && aNow > reactOnMultiplePressed) {
+    reactOnMultiplePressed=0;
+    CLEAR_HISTORY;
+    switch (buttonCnt) {
+      case 1:
+        switch (ourContext) {
+          case SERVO_PAGE:
+            // buzzOn(10);
+            // setServoPosInPercent(0);
+            ourContext=SERVO_MENU_PAGE;
+            resetRotaryEncoder();
+            break;
+          case SERVO_MENU_PAGE:
+            switch (getModulo(ourRotaryMenuPosition, ourServoMenuSize)){
+              case 0:
+                // "0:Servo-Pos=0%";
+                setServoPosInPercent(0);
+                ourContext=SERVO_PAGE;
+                resetRotaryEncoder();
+                break;
+              case 1:
+                // "1:Tara-Winkel";
+                taraAngle();
+                ourContext=SERVO_PAGE;
+                resetRotaryEncoder();
+                break;
+              case 2:
+                // "2:Setze Rudertiefe";
+                ourContext=SET_RUDDER_DEPTH;
+                resetRotaryEncoder();
+                break;
+              case 3:
+                // "3:Setze Servoschritte";
+                ourContext=SET_SERVO_STEPS;
+                resetRotaryEncoder();
+                break;
+              case 4:
+                // "4:zurück";
+                ourContext=SERVO_PAGE;
+                resetRotaryEncoder();
+                break;
+            }
+            break;
+          case SET_SERVO_STEPS:
+            ourContext=SERVO_PAGE;
+            resetRotaryEncoder();
+            break;
+          case SET_RUDDER_DEPTH:
+            ourContext=SERVO_PAGE;
+            resetRotaryEncoder();
+            break;
+          case BASE_MENU_PAGE:
+            switch (getModulo(ourRotaryMenuPosition, ourBaseMenuSize)){
+              case 0:
+                ourContext = SERVO_PAGE;
+                resetRotaryEncoder();
+                break;
+              case 1:
+                ourContext = ANGLE_SENSOR_PAGE;
+                resetRotaryEncoder();
+                break;
+              case 2:
+                ourContext = DEBUG_PAGE;
+                resetRotaryEncoder();
+                break;
+            }
+            break;
+          case ANGLE_SENSOR_PAGE:
+            taraAngle();
+            break;
+        } 
+        break;
+      case 2:
+        switch (ourContext) {
+          case SERVO_PAGE:
+            switch(ourRotaryEncoderMultiplier) {
+              case RE_MULITPLIER_SLOW:
+                ourRotaryEncoderMultiplier = RE_MULITPLIER_NORMAL;
+                break;
+              case RE_MULITPLIER_NORMAL:
+                ourRotaryEncoderMultiplier = RE_MULITPLIER_FAST;
+                break;
+              default :
+                ourRotaryEncoderMultiplier = RE_MULITPLIER_SLOW;
+                break;
+            }
+            ourOLEDLogString = "x=" + String(ourRotaryEncoderMultiplier);
+          break;
+          case ANGLE_SENSOR_PAGE:
+            // invert the sensor angle
+            ourConfig.angleInversion = ourConfig.angleInversion == 1 ? -1 : 1;
+            break;
+        } 
+        break;
+      case 3:
+        switch (ourContext) {
+          default:
+            ourContext = BASE_MENU_PAGE;
+            resetRotaryEncoder();
+            break;
+        }
+        break;
+    }
+  }
+}
+
+static long ourREOldPos  = 0;
+void resetRotaryEncoder() {
+  ourRotaryEncoder.write(0);
+  ourREOldPos = 0;
+  ourRotaryEncoderPosition = 0;
+  ourRotaryMenuPosition = 0;
+  ourDebug1 = 0;
+  ourDebug2 = 0;
+  ourDebug3 = 0;
+}
+
+void updateRotaryEncoder(unsigned long aNow) {
+  long position = ourRotaryEncoder.read()/4;
+  if (position != ourREOldPos) {
+    int8_t delta = position - ourREOldPos;
+    ourRotaryEncoderPosition = position;
+    ourRotaryMenuPosition = position/3;
+    ourDebug1 = position;
+    ourDebug2 = ourRotaryEncoderPosition;
+    ourDebug3 = ourRotaryMenuPosition/2;
+
+    // encoder changes value 3 per grid step
+    // logMsg(INFO, F("Encoder:") + String(ourRotaryEncoderPosition));
+    // logMsg(INFO, F("Encoder mod:") + String(ourRotaryEncoderPosition));
+
+    switch (ourContext) {
+      case SERVO_PAGE:
+        {
+          int16_t servoPos = getServoPosInMicroSeconds();
+          servoPos += delta*5*ourRotaryEncoderMultiplier;
+          if (convertMicroSeconds2Percent(servoPos) > 150) servoPos=convertPercent2MicroSeconds(150);
+          if (convertMicroSeconds2Percent(servoPos) < -150) servoPos=convertPercent2MicroSeconds(-150);
+          if (convertMicroSeconds2Percent(servoPos) == 0 ) {
+            buzzOn(5);
+          } else if (convertMicroSeconds2Percent(servoPos)%10 == 0 ) {
+            // buzzOn(2);
+          }
+          setServoPosInMicroSeconds(servoPos);
+        }
+        break;
+      case SET_SERVO_STEPS:
+        {
+          uint8_t steps = getModulo(position, 3);
+          switch (steps) {
+            case 1:
+              ourRotaryEncoderMultiplier = RE_MULITPLIER_FAST;
+              break;
+            case 2:
+              ourRotaryEncoderMultiplier = RE_MULITPLIER_SLOW;
+              break;
+            default :
+              ourRotaryEncoderMultiplier = RE_MULITPLIER_NORMAL;
+          }
+        }
+        break;
+      case SET_RUDDER_DEPTH:
+        ourRudderSize += delta;
+        break;
+    }
+    ourREOldPos = position;
+  }
+} 
+#endif
+
+#ifdef CURRENT_SENSOR
+void updateCurrentSensor(unsigned long aNow) {
+  static unsigned long last=0;
+  #define CURRENT_SENSOR_REFRESH_CYCLE 500
+
+  // IIR Low Pass Filter
+  // y[i] := α * x[i] + (1-α) * y[i-1]
+  //      := y[i-1] + α * (x[i] - y[i-1])
+  // mit α = 1- β
+  // y[i] := (1-β) * x[i] + β * y[i-1]
+  //      := x[i] - β * x[i] + β * y[i-1]
+  //      := x[i] + β (y[i-1] - x[i])
+  // see: https://en.wikipedia.org/wiki/Low-pass_filter#Simple_infinite_impulse_response_filter
+  float currentValue = analogRead(A0);
+  mySmoothedCurrent = currentValue + 0.05f * (mySmoothedCurrent - currentValue);
+
+  if (aNow < last) {
+    return;
+  }
+  last = aNow + CURRENT_SENSOR_REFRESH_CYCLE;
+
+  // ACS712 : 185mV/A for the ACS712T ELC-05B (5 Ampere max current)
+  // ESP8266 : A0 provides 0-1023 for 0 - 3300mV => max resolution: 3.2mV
+  const static int zeroCurrentValue = 810;
+  ourServoCurrent = (mySmoothedCurrent - zeroCurrentValue)*3.3/1024/0.185;
+  ourServoCurrent = max(0.0f, ourServoCurrent);
+  if (ourServoCurrent > 0.5 ) {
+    buzzOn(100);
+  }
+  logMsg(INFO, F("ACS712: [current raw]") + String(currentValue));
+  logMsg(INFO, F("ACS712: [smoothed raw]") + String(mySmoothedCurrent));
+  logMsg(INFO, F("ACS712: Current[A]") + String(ourServoCurrent));
+}
+#endif
+
+static unsigned long ourBuzzTimeTill = 0;
+static boolean ourBuzzOn = false; 
+
+void setupBuzzer() {
+  Serial.println(F("setupBuzzer"));
+  pinMode (PIN_BUZZER_OUT, OUTPUT );
+  digitalWrite(PIN_BUZZER_OUT, LOW);
+}   
+
+void buzzOn(uint16_t aDuration) {
+  #ifndef NOBUZZ
+  if (ourBuzzOn) {
+    unsigned long dura = millis() + aDuration;
+    ourBuzzTimeTill = max(dura, ourBuzzTimeTill);
+  } else { 
+    ourBuzzTimeTill = millis() + aDuration;
+  } 
+  ourBuzzOn = true;
+  digitalWrite(PIN_BUZZER_OUT, HIGH);
+   logMsg(INFO, F("buzzOn duration/till: ")
+          + String(aDuration) + "/"
+          + String(ourBuzzTimeTill));
+  #endif
+}
+
+
+void updateBuzzer(unsigned long aNow) {
+  if (ourBuzzOn) {
+    // digitalWrite(PIN_BUZZER_OUT, HIGH);  
+    if (aNow > ourBuzzTimeTill) {
+      logMsg(INFO, F("buzz_off"));
+      ourBuzzOn = false;
+      digitalWrite(PIN_BUZZER_OUT, LOW);  
+    }
+  }
+} 
+
+
 
 void loop()
 {
   static unsigned long last = 0;
+  unsigned long now = millis();
   server.handleClient();
   ourDNSServer.processNextRequest();
   MDNS.update();
 
   moveServo();
   readMotionSensor();
+  #ifdef ROTARY_ENCODER
+  updateRotaryEncoder(now);
+  updatePushButton(now);
+  #endif
+  #ifdef OLED
+  updateOLED(now);
+  #endif
+  updateBuzzer(now);
+  #ifdef CURRENT_SENSOR
+  updateCurrentSensor(now);
+  #endif
+
   doAsync();
+
+  if (WiFi.status() == WL_CONNECTED) {
+    #ifdef OTA
+    ArduinoOTA.handle();
+    #endif
+  }
+
 
   if ( (millis() - last) > 500) {
     // showServoPos();
@@ -430,6 +1116,61 @@ void loop()
   }
 }
 
+
+// OVER THE AIR
+#ifdef OTA
+void setup_ota() {
+  // Port defaults to 8266
+  // ArduinoOTA.setPort(8266);
+
+  // Hostname defaults to esp8266-[ChipID]
+  // ArduinoOTA.setHostname(String("esp8266" + WiFi.macAddress()).c_str());
+
+  // No authentication by default
+  ArduinoOTA.setPassword("admin");
+
+  // Password can be set with it's md5 value as well
+  // MD5(admin) = 21232f297a57a5a743894a0e4a801fc3
+  // ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
+
+  ArduinoOTA.onStart([]() {
+    String type;
+    if (ArduinoOTA.getCommand() == U_FLASH) {
+      type = F("sketch");
+    } else { // U_FS
+      type = F("filesystem");
+    }
+
+    // NOTE: if updating FS this would be the place to unmount FS using FS.end()
+    Serial.println(F("Start updating ") + type);
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial.println(F("\nEnd"));
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) {
+      Serial.println(F("Auth Failed"));
+    } else if (error == OTA_BEGIN_ERROR) {
+      Serial.println(F("Begin Failed"));
+    } else if (error == OTA_CONNECT_ERROR) {
+      Serial.println(F("Connect Failed"));
+    } else if (error == OTA_RECEIVE_ERROR) {
+      Serial.println(F("Receive Failed"));
+    } else if (error == OTA_END_ERROR) {
+      Serial.println(F("End Failed"));
+    }
+  });
+  ArduinoOTA.begin();
+  Serial.print(F("ArduinoOTA: setup ready"));
+  Serial.print(F("  IP address: "));
+  Serial.println(WiFi.localIP());
+}
+#endif
+// End: OVER THE AIR
 
 
 // =================================
@@ -463,7 +1204,7 @@ void initAngleMeasure() {
 */
 void initPresetInPercent(uint8_t aNum, uint16_t aPercent) {
   if (aNum < CONFIG_SERVO_PRESET_MAX) {
-    ourConfig.servoPresets[aNum] = toMicroSeconds(aPercent);
+    ourConfig.servoPresets[aNum] = convertPercent2MicroSeconds(aPercent);
     ourProtocolData.currentPresetAngles[aNum] = ANGLE_UNSET_VAL;
   }
 }
@@ -491,9 +1232,9 @@ void initServo() {
   ourServo.attach(SERVO_PIN,
     ourConfig.servoPulseWidthPairFullRange[MIN_IDX],
     ourConfig.servoPulseWidthPairFullRange[MAX_IDX]);
-  set_pwm_value((ourConfig.servoPulseWidthPairFullRange[MIN_IDX] +
+  setServoPosInMicroSeconds((ourConfig.servoPulseWidthPairFullRange[MIN_IDX] +
      ourConfig.servoPulseWidthPairFullRange[MAX_IDX]) /2);
-  ourServo.writeMicroseconds(get_pwm_value());
+  ourServo.writeMicroseconds(getServoPosInMicroSeconds());
 
   // check and reset servo preset values if not valid initialized
   for (int i=0; i<CONFIG_SERVO_PRESET_MAX; i++) {
@@ -711,8 +1452,9 @@ void flightPhaseMeasure(boolean aStart) {
     ourIsMeasureActive=false;
   }
 }
+
 void moveServo() {
-  int16_t pos = get_pwm_value();
+  int16_t pos = getServoPosInMicroSeconds();
   if (ourServoDirection == -1 ) {
     pos = -pos
       +  (ourConfig.servoPulseWidthPairFullRange[MIN_IDX]
@@ -721,7 +1463,7 @@ void moveServo() {
   ourServo.writeMicroseconds(pos);
 }
 
-int16_t toPercentage(int16_t aMicroSeconds) {
+int16_t convertMicroSeconds2Percent(int16_t aMicroSeconds) {
   int16_t retVal;
   retVal = map(aMicroSeconds,
     ourConfig.servoPulseWidthPair100Percent[MIN_IDX],
@@ -730,8 +1472,8 @@ int16_t toPercentage(int16_t aMicroSeconds) {
   return retVal;
 }
 
-int16_t toMicroSeconds(int16_t aPercent) {
-  // Serial.print(" toMicroSeconds: ");
+int16_t convertPercent2MicroSeconds(int16_t aPercent) {
+  // Serial.print(" convertPercent2MicroSeconds: ");
   // Serial.print(aPercent);
   // Serial.print(" return: ");
   int16_t retVal;
@@ -742,23 +1484,23 @@ int16_t toMicroSeconds(int16_t aPercent) {
   return retVal;
 }
 
-int16_t get_percent_value(int16_t aPWMValue) {
-  return toPercentage(aPWMValue);
+int16_t getServoPosInPercent(int16_t aPWMValue) {
+  return convertMicroSeconds2Percent(aPWMValue);
 }
 
-int16_t get_percent_value() {
-  return get_percent_value(get_pwm_value());
+int16_t getServoPosInPercent() {
+  return getServoPosInPercent(getServoPosInMicroSeconds());
 }
 
-void set_percent_value(int16_t aPercentValue) {
-  set_pwm_value(toMicroSeconds(aPercentValue));
+void setServoPosInPercent(int16_t aPercentValue) {
+  setServoPosInMicroSeconds(convertPercent2MicroSeconds(aPercentValue));
 }
 
-int16_t get_pwm_value() {
+int16_t getServoPosInMicroSeconds() {
   return ourServoPos;
 }
 
-void set_pwm_value(int16_t aValue) {
+void setServoPosInMicroSeconds(int16_t aValue) {
   if (aValue > ourServoLimit[MAX_IDX]) {
     ourServoPos = ourServoLimit[MAX_IDX];
     #ifdef DO_LOG
@@ -793,9 +1535,9 @@ void set_pwm_value(int16_t aValue) {
 
 void showServoPos() {
   Serial.print(" servo pos: ");
-  Serial.print(get_pwm_value());
+  Serial.print(getServoPosInMicroSeconds());
   Serial.print("us, ");
-  Serial.print(get_percent_value());
+  Serial.print(getServoPosInPercent());
   Serial.print("%");
   Serial.println();
 }
@@ -807,7 +1549,7 @@ void showServoPos() {
 void storePreset(uint8_t aNum){
   Serial.print(" storePreset: ");
   if (aNum < CONFIG_SERVO_PRESET_MAX) {
-    ourConfig.servoPresets[aNum] = get_pwm_value();
+    ourConfig.servoPresets[aNum] = getServoPosInMicroSeconds();
     ourProtocolData.currentPresetAngles[aNum] = getAngle();
     Serial.print(ourConfig.servoPresets[aNum]);
     Serial.print("/");
@@ -824,8 +1566,8 @@ void loadPreset(uint8_t aNum) {
   Serial.print(aNum);
   Serial.print("]: ");
   if (aNum < CONFIG_SERVO_PRESET_MAX) {
-    set_pwm_value(getPreset(aNum));
-    Serial.print(toPercentage(getPreset(aNum)));
+    setServoPosInMicroSeconds(getPreset(aNum));
+    Serial.print(convertMicroSeconds2Percent(getPreset(aNum)));
     Serial.print("/");
     Serial.print(getPreset(aNum));
   } else {
@@ -838,7 +1580,7 @@ void loadPreset(uint8_t aNum) {
   get the value in percent of the preset store given by aNum
 */
 int16_t getPresetInPercent(uint8_t aNum) {
-  return aNum < CONFIG_SERVO_PRESET_MAX ? toPercentage(getPreset(aNum)) : 0;
+  return aNum < CONFIG_SERVO_PRESET_MAX ? convertMicroSeconds2Percent(getPreset(aNum)) : 0;
 }
 
 /**
@@ -949,12 +1691,12 @@ void htmlShowProtocolTable() {
     servoDataSet_t *dataSet = &ourProtocolData.rudderData[i];
     table.concat("<td>"); table.concat(dataSet->descr);
     table.concat("/"); table.concat(servoFunctionIdx2Shortcut(dataSet->functionIdx)); table.concat("</td>");
-    table.concat("<td>"); table.concat(get_percent_value(dataSet->limitLow)); table.concat("</td>");
+    table.concat("<td>"); table.concat(getServoPosInPercent(dataSet->limitLow)); table.concat("</td>");
     table.concat("<td>"); table.concat(dataSet->limitLow); table.concat("</td>");
-    table.concat("<td>"); table.concat(get_percent_value(dataSet->limitHigh)); table.concat("</td>");
+    table.concat("<td>"); table.concat(getServoPosInPercent(dataSet->limitHigh)); table.concat("</td>");
     table.concat("<td>"); table.concat(dataSet->limitHigh); table.concat("</td>");
 #ifdef SERVOPOS
-    table.concat("<td>"); table.concat(get_percent_value(dataSet->servoPos));table.concat("/"); table.concat(dataSet->servoPos); table.concat("</td>");
+    table.concat("<td>"); table.concat(getServoPosInPercent(dataSet->servoPos));table.concat("/"); table.concat(dataSet->servoPos); table.concat("</td>");
 #else
     for (int j=0; j<CONFIG_SERVO_PRESET_MAX; j++) {
       int theServoPos = dataSet->servoPresets[j];
@@ -965,7 +1707,7 @@ void htmlShowProtocolTable() {
         table.concat("<td>"); table.concat("-"); table.concat("</td>");
         table.concat("<td>"); table.concat("-"); table.concat("</td>");
       } else {
-        table.concat("<td>"); table.concat(get_percent_value(theServoPos)); table.concat("</td>");
+        table.concat("<td>"); table.concat(getServoPosInPercent(theServoPos)); table.concat("</td>");
         table.concat("<td>"); table.concat(theServoPos); table.concat("</td>");
         table.concat("<td>"); table.concat(getRoundedAngle(theAngle)); table.concat("</td>");
         table.concat("<td>"); table.concat(getRoundedAmplitude(theAngle)); table.concat("</td>");
@@ -984,6 +1726,7 @@ void htmlShowProtocolTable() {
 void htmlMenuPage() {
   Serial.print(server.client().remoteIP().toString());
   Serial.println(" : htmlMenuPage()");
+  ourContext=BASE_MENU_PAGE;
   checkHTMLArguments();
   server.send(200, "text/html", FPSTR(MENU_page)); //Send web page
 }
@@ -991,6 +1734,7 @@ void htmlMenuPage() {
 void htmlAngleSensorPage() {
   Serial.print(server.client().remoteIP().toString());
   Serial.println(" : htmlAngleSensorPage()");
+  ourContext=ANGLE_SENSOR_PAGE;
   checkHTMLArguments();
   server.send(200, "text/html", FPSTR(ANGLE_SENSOR_page)); //Send web page
 }
@@ -998,6 +1742,7 @@ void htmlAngleSensorPage() {
 void htmlServoPage() {
   Serial.print(server.client().remoteIP().toString());
   Serial.println(" : htmlServoPage()");
+  ourContext=SERVO_PAGE;
   checkHTMLArguments();
   server.send(200, "text/html", FPSTR(SERVO_page)); //Send web page
 }
@@ -1005,31 +1750,33 @@ void htmlServoPage() {
 void htmlAdminPage() {
   Serial.print(server.client().remoteIP().toString());
   Serial.println(" : htmlAdminPage()");
+  ourContext=ADMIN_PAGE;
   server.send(200, "text/html", FPSTR(ADMIN_page)); //Send web page
 }
 
 void htmlExpertPage() {
   Serial.print(server.client().remoteIP().toString());
   Serial.println(" : htmlExpertPage()");
+  ourContext=EXPERT_ADMIN_PAGE;
   server.send(200, "text/html", FPSTR(EXPERT_page)); //Send web page
 }
 
 String createDynValueResponse(String aIdForcingValue) {
   String result = "";
   if (aIdForcingValue != "id_pwm_setvalue") {
-    result += String("id_pwm_setvalue") + "=" + get_pwm_value() + MYSEP_STR;
+    result += String("id_pwm_setvalue") + "=" + getServoPosInMicroSeconds() + MYSEP_STR;
   }
   if (aIdForcingValue != "id_pwm_value") {
-    result += String("id_pwm_value") + "=" + get_pwm_value() + MYSEP_STR;
+    result += String("id_pwm_value") + "=" + getServoPosInMicroSeconds() + MYSEP_STR;
   }
   if (aIdForcingValue != "id_percent_setvalue") {
-    result += String("id_percent_setvalue") + "=" + get_percent_value() + MYSEP_STR;
+    result += String("id_percent_setvalue") + "=" + getServoPosInPercent() + MYSEP_STR;
   }
   if (aIdForcingValue != "id_percent_value") {
-    result += String("id_percent_value") + "=" + get_percent_value() + MYSEP_STR;
+    result += String("id_percent_value") + "=" + getServoPosInPercent() + MYSEP_STR;
   }
   if (aIdForcingValue != "id_pos_slider") {
-    result += String("id_pos_slider") + "=" + get_percent_value() + MYSEP_STR;
+    result += String("id_pos_slider") + "=" + getServoPosInPercent() + MYSEP_STR;
   }
   return result;
 }
@@ -1043,7 +1790,7 @@ void restoreProtocolDataSet(uint8_t aIdx) {
     for (int i=0; i<CONFIG_SERVO_PRESET_MAX; i++) {
       initPresetInPercent(i, (-100 + i*100));
     }
-    // dataSet->servoPos = get_pwm_value();
+    // dataSet->servoPos = getServoPosInMicroSeconds();
     // ourRudderSize = dataSet->rudderSize = ourRudderSize;
     // dataSet->angle = getRoundedAngle();
     ourServoLimit[MIN_IDX] = ourConfig.servoPulseWidthPairFullRange[MIN_IDX];
@@ -1059,7 +1806,7 @@ void restoreProtocolDataSet(uint8_t aIdx) {
       ourConfig.servoPresets[i] = dataSet->servoPresets[i];
       ourProtocolData.currentPresetAngles[i] = dataSet->presetAngles[i];
     }
-    // dataSet->servoPos = get_pwm_value();
+    // dataSet->servoPos = getServoPosInMicroSeconds();
     ourRudderSize = dataSet->rudderSize;
     ourServoDirection = dataSet->servoDirection;
     dataSet->angle = getRoundedAngle();
@@ -1076,8 +1823,8 @@ String getResponse4Presets() {
   }
 
   // limit display
-  retVal += String("id_btn_set_limit_min") + "=" + toPercentage(ourServoLimit[MIN_IDX]) + "%" + MYSEP_STR;
-  retVal += String("id_btn_set_limit_max") + "=" + toPercentage(ourServoLimit[MAX_IDX]) + "%" + MYSEP_STR;
+  retVal += String("id_btn_set_limit_min") + "=" + convertMicroSeconds2Percent(ourServoLimit[MIN_IDX]) + "%" + MYSEP_STR;
+  retVal += String("id_btn_set_limit_max") + "=" + convertMicroSeconds2Percent(ourServoLimit[MAX_IDX]) + "%" + MYSEP_STR;
 
   // limit buttons
   if ( ourServoLimit[MIN_IDX] == ourConfig.servoPulseWidthPairFullRange[MIN_IDX]) {
@@ -1106,7 +1853,7 @@ String getResponse4Presets() {
 String getResponse4Preset(uint8_t aPos) {
   String retVal = "";
   if (aPos < CONFIG_SERVO_PRESET_MAX) {
-    retVal += String("id_btn_set_pos_") + String(aPos) + "=" + toPercentage(getPreset(aPos)) + MYSEP_STR;
+    retVal += String("id_btn_set_pos_") + String(aPos) + "=" + convertMicroSeconds2Percent(getPreset(aPos)) + MYSEP_STR;
     float theAngle = ourProtocolData.currentPresetAngles[aPos];
     retVal += String("id_btn_store_pos_") + String(aPos) + "=";
     if (theAngle == ANGLE_UNSET_VAL) {
@@ -1126,7 +1873,7 @@ void storeProtocolDataSet(uint8_t aIdx) {
     dataSet->servoPresets[i] = ourConfig.servoPresets[i];
     dataSet->presetAngles[i] = ourProtocolData.currentPresetAngles[i];
   }
-  dataSet->servoPos = get_pwm_value();
+  dataSet->servoPos = getServoPosInMicroSeconds();
   dataSet->rudderSize = ourRudderSize;
   dataSet->servoDirection = ourServoDirection;
   dataSet->angle = getRoundedAngle();
@@ -1335,15 +2082,15 @@ void setDataReq() {
   } else
   // servo controll stuff
   if ( name == "id_pwm_setvalue") {
-    set_pwm_value(value.toInt());
+    setServoPosInMicroSeconds(value.toInt());
     response += createDynValueResponse(name);
   } else
   if ( name == "id_percent_setvalue") {
-    set_percent_value(value.toInt());
+    setServoPosInPercent(value.toInt());
     response += createDynValueResponse(name);
   } else
   if ( name == "id_pos_slider") {
-    set_percent_value(value.toInt());
+    setServoPosInPercent(value.toInt());
     response += createDynValueResponse(name);
   } else
   if ( name == "id_servo_direction") {
@@ -1366,7 +2113,7 @@ void setDataReq() {
   if ( name == "evt_wheel") {
     if (ourWheelActivation == true) {
       int8_t f = value.toInt() * ourWheelFactor;
-      set_percent_value(get_percent_value() - f);
+      setServoPosInPercent(getServoPosInPercent() - f);
       // Serial.print("wheel: ");
       // Serial.print(f);
       response += createDynValueResponse("-");
@@ -1375,23 +2122,23 @@ void setDataReq() {
   if ( name.startsWith("cmd_limit")) {
     if ( value.equals("id_set_min")) {
       if ( ourServoLimit[MIN_IDX] == ourConfig.servoPulseWidthPairFullRange[MIN_IDX]) {
-        ourServoLimit[MIN_IDX] = get_pwm_value();
+        ourServoLimit[MIN_IDX] = getServoPosInMicroSeconds();
         response += String("id_btn_store_limit_min") + "=" + String("unlimit") + MYSEP_STR;
       } else {
         ourServoLimit[MIN_IDX] = ourConfig.servoPulseWidthPairFullRange[MIN_IDX];
         response += String("id_btn_store_limit_min") + "=" + String("limit") + MYSEP_STR;
       }
-      response += String("id_btn_set_limit_min") + "=" + toPercentage(ourServoLimit[MIN_IDX]) + "%" + MYSEP_STR;
+      response += String("id_btn_set_limit_min") + "=" + convertMicroSeconds2Percent(ourServoLimit[MIN_IDX]) + "%" + MYSEP_STR;
     } else
     if ( value.equals("id_set_max")) {
       if ( ourServoLimit[MAX_IDX] == ourConfig.servoPulseWidthPairFullRange[MAX_IDX]) {
-        ourServoLimit[MAX_IDX] = get_pwm_value();
+        ourServoLimit[MAX_IDX] = getServoPosInMicroSeconds();
         response += String("id_btn_store_limit_max") + "=" + String("unlimit") + MYSEP_STR;
       } else {
         ourServoLimit[MAX_IDX] = ourConfig.servoPulseWidthPairFullRange[MAX_IDX];
         response += String("id_btn_store_limit_max") + "=" + String("limit") + MYSEP_STR;
       }
-      response += String("id_btn_set_limit_max") + "=" + toPercentage(ourServoLimit[MAX_IDX]) + "%" + MYSEP_STR;
+      response += String("id_btn_set_limit_max") + "=" + convertMicroSeconds2Percent(ourServoLimit[MAX_IDX]) + "%" + MYSEP_STR;
     }
   } else
   if ( name.equals("cmd_store_servo_pos")) {
@@ -1652,38 +2399,38 @@ void getDataReq() {
       response += argName + "=" + String(ourConfig.servoPulseWidthPair100Percent[MAX_IDX]) + MYSEP_STR;
     } else
     if (argName.equals("id_pwm_value")) {
-      response += argName + "=" + String(get_pwm_value()) + MYSEP_STR;
+      response += argName + "=" + String(getServoPosInMicroSeconds()) + MYSEP_STR;
     } else
     if (argName.equals("id_pwm_setvalue")) {
-      response += argName + "=" + String(get_pwm_value())
+      response += argName + "=" + String(getServoPosInMicroSeconds())
                   + "=" + String(ourConfig.servoPulseWidthPairFullRange[MIN_IDX])
                   + "=" + String(ourConfig.servoPulseWidthPairFullRange[MAX_IDX])
                   + MYSEP_STR;
     } else
     if (argName.equals("id_percent_value")) {
-      response += argName + "=" + String(get_percent_value()) + MYSEP_STR;
+      response += argName + "=" + String(getServoPosInPercent()) + MYSEP_STR;
     } else
     if (argName.equals("id_percent_setvalue")) {
-      response += argName + "=" + String(get_percent_value())
-                  + "=" + String(get_percent_value(ourConfig.servoPulseWidthPairFullRange[MIN_IDX]))
-                  + "=" + String(get_percent_value(ourConfig.servoPulseWidthPairFullRange[MAX_IDX]))
+      response += argName + "=" + String(getServoPosInPercent())
+                  + "=" + String(getServoPosInPercent(ourConfig.servoPulseWidthPairFullRange[MIN_IDX]))
+                  + "=" + String(getServoPosInPercent(ourConfig.servoPulseWidthPairFullRange[MAX_IDX]))
                   + MYSEP_STR;
     } else
     if (argName.equals("id_pos_slider")) {
-      response += argName + "=" + String(get_percent_value())
-                  + "=" + String(get_percent_value(ourConfig.servoPulseWidthPairFullRange[MIN_IDX]))
-                  + "=" + String(get_percent_value(ourConfig.servoPulseWidthPairFullRange[MAX_IDX]))
+      response += argName + "=" + String(getServoPosInPercent())
+                  + "=" + String(getServoPosInPercent(ourConfig.servoPulseWidthPairFullRange[MIN_IDX]))
+                  + "=" + String(getServoPosInPercent(ourConfig.servoPulseWidthPairFullRange[MAX_IDX]))
                   + MYSEP_STR;
     } else
     if (argName.startsWith("id_btn_set_pos_")) {
       int pos = argName.substring(15).toInt();
-      response += argName + "=" + String(toPercentage(getPreset(pos))) + MYSEP_STR;
+      response += argName + "=" + String(convertMicroSeconds2Percent(getPreset(pos))) + MYSEP_STR;
     } else
     if (argName.startsWith("id_btn_set_limit_")) {
       if (argName.equals("id_btn_set_limit_min")) {
-        response += argName + "=" + toPercentage(ourServoLimit[MIN_IDX]) + "%" + MYSEP_STR;
+        response += argName + "=" + convertMicroSeconds2Percent(ourServoLimit[MIN_IDX]) + "%" + MYSEP_STR;
       } else {
-        response += argName + "=" + toPercentage(ourServoLimit[MAX_IDX]) + "%" + MYSEP_STR;
+        response += argName + "=" + convertMicroSeconds2Percent(ourServoLimit[MAX_IDX]) + "%" + MYSEP_STR;
       }
     } else
     if (argName.startsWith("id_btn_store_limit_")) {
@@ -1701,7 +2448,7 @@ void getDataReq() {
         }
       }
       // int pos = argName.substring(15).toInt();
-      // response += argName + "=" + String(toPercentage(getPreset(pos))) + MYSEP_STR;
+      // response += argName + "=" + String(convertMicroSeconds2Percent(getPreset(pos))) + MYSEP_STR;
     } else
     if (argName.startsWith("id_btn_store_pos_")) {
       int pos = argName.substring(17).toInt();
@@ -1852,7 +2599,7 @@ void checkHTMLArguments() {
 // =================================
 
 // similiar to map but will have increased accuracy that provides a more
-// symetric api (call it and use result to reverse will provide the original value)
+// symmetric api (call it and use result to reverse will provide the original value)
 int my_map(int value, int minIn, int maxIn, int minOut, int maxOut)
 {
     const int rangeIn = maxIn - minIn;
@@ -2169,7 +2916,7 @@ void setupWiFi() {
   }
 
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("success!");
+   Serial.println("success!");
     Serial.print("IP Address is: ");
     Serial.println(WiFi.localIP());
     if (MDNS.begin("sensor")) {  //Start mDNS with name esp8266
