@@ -61,7 +61,6 @@ long ourDebug3;
 Encoder ourRotaryEncoder(D7, D3);
 #define RE_MULITPLIER_SLOW 1
 #define RE_MULITPLIER_NORMAL 5
-#define RE_MULITPLIER_FAST 15
 long ourRotaryEncoderPosition=0;
 long ourRotaryMenuPosition=0;
 uint8_t ourRotaryEncoderMultiplier;
@@ -69,9 +68,6 @@ uint8_t ourRotaryEncoderMultiplier;
 #include <Bounce2.h>
 Bounce2::Button ourPushButton = Bounce2::Button();
 #endif
-
-String ourOLEDLogString;
-
 
 #define OTA
 #ifdef OTA
@@ -126,8 +122,9 @@ String ourOLEDLogString;
 // V0.161 : fixed CTRL-Key handling for Macs
 // V0.162 : expert menu now as a separate button, and AJAX get requets will work with ESP32 web server
 // V0.170 : first draft: support for working OLED GUI for servo page, angle page and settings for angle tara, rudder depth, servo steps and servo null value
+// V0.171 : second draft: more menus and settings an enhance GUI vor the 128x32 OLED
 
-#define APP_VERSION "V0.170"
+#define APP_VERSION "V0.171"
 
 /**
  * \file RcSetupTool.ino
@@ -362,29 +359,41 @@ float ourServoCurrent;
 enum ToolContext {
   BASE_MENU_PAGE,
   SERVO_MENU_PAGE,
+  ANGLE_MENU_PAGE,
   SERVO_PAGE,
   ANGLE_SENSOR_PAGE,
+  MULTI_TOOL_PAGE,
   ADMIN_PAGE,
   SET_SERVO_STEPS,
   SET_RUDDER_DEPTH,
   EXPERT_ADMIN_PAGE,
+  INFO_PAGE,
   DEBUG_PAGE,
 };
 
 ToolContext ourContext=BASE_MENU_PAGE;
-const char* ourBaseMenu0 = "0:Servotester";
-const char* ourBaseMenu1 = "1:Winkelmesser";
-const char* ourBaseMenu2 = "2:Debug-Anzeige";
-const char* ourBaseMenuItems[] = {ourBaseMenu0, ourBaseMenu1, ourBaseMenu2};
+const char* ourBaseMenu0 = "0:Multi-Tool";
+const char* ourBaseMenu1 = "1:Servocontroller";
+const char* ourBaseMenu2 = "2:Winkelmesser";
+const char* ourBaseMenu3 = "3:Infos";
+const char* ourBaseMenu4 = "4:Debug-Anzeige";
+const char* ourBaseMenuItems[] = {ourBaseMenu0, ourBaseMenu1, ourBaseMenu2, ourBaseMenu3, ourBaseMenu4};
 const uint8_t ourBaseMenuSize = sizeof(ourBaseMenuItems) / sizeof(char*);;
 
 const char* ourServoMenu0 = "0:Servo-Pos=0%";
 const char* ourServoMenu1 = "1:Tara-Winkel";
 const char* ourServoMenu2 = "2:Setze Rudertiefe";
 const char* ourServoMenu3 = "3:Setze Servoschritte";
-const char* ourServoMenu4 = "4:zurück";
-const char* ourServoMenuItems[] = {ourServoMenu0, ourServoMenu1, ourServoMenu2, ourServoMenu3, ourServoMenu4};
+const char* ourServoMenu4 = "4:zurueck";
+const char* ourServoMenu5 = "5:Hauptmenu";
+const char* ourServoMenuItems[] = {ourServoMenu0, ourServoMenu1, ourServoMenu2, ourServoMenu3, ourServoMenu4, ourServoMenu5};
 const uint8_t ourServoMenuSize = sizeof(ourServoMenuItems) / sizeof(char*);;
+
+const char* ourAngleMenu0 = "0:Tara-Winkel";
+const char* ourAngleMenu1 = "1:Setze Rudertiefe";
+const char* ourAngleMenu2 = "2:Hauptmenu";
+const char* ourAngleMenuItems[] = {ourAngleMenu0, ourAngleMenu1, ourAngleMenu2};
+const uint8_t ourAngleMenuSize = sizeof(ourAngleMenuItems) / sizeof(char*);;
 
 #define MIN_PULSE_WITDH 700 // us
 #define MAX_PULSE_WITDH 2300 // us
@@ -597,8 +606,6 @@ const uint8_t *oledFontLarge;
 const uint8_t *oledFontBig;
 const uint8_t *oledFontNormal;
 const uint8_t *oledFontSmall;
-const uint8_t *oledFontTiny;
-const uint8_t *oledFontIcon;
   
   
 void setupDisplay() {
@@ -608,13 +615,10 @@ void setupDisplay() {
   int oledDisplayHeight = ourOLED.getDisplayHeight();
   int oledDisplayWidth = ourOLED.getDisplayWidth();
   logMsg(INFO, F("init OLED display: ") + String(oledDisplayWidth) + String(F("x")) + String(oledDisplayHeight));
-  oledFontLarge  = u8g2_font_helvB18_tr;
-  oledFontLarge  = u8g2_font_profont17_tf;
-  oledFontBig    = u8g2_font_helvR12_tr;
-  oledFontNormal = u8g2_font_helvR10_tr;
+  oledFontLarge  = u8g2_font_helvB18_tf;
+  oledFontBig    = u8g2_font_helvB14_tf;
+  oledFontNormal = u8g2_font_7x13B_tf; // u8g2_font_helvB08_tf;
   oledFontSmall  = u8g2_font_5x7_tr; 
-  oledFontTiny   = u8g2_font_4x6_tr;
-  oledFontIcon   = u8g2_font_m2icon_7_tf;
   ourOLED.firstPage();
   do {
     showHello();
@@ -636,14 +640,25 @@ void showOLEDAngleSensorPage() {
   ourOLED.setDrawColor(1);
   ourOLED.setFontMode(0);
   ourOLED.setFont(oledFontLarge);
-  String angle = String(getRoundedAngle(), 1); 
-  // ourOLED.setCursor(120-ourOLED.getStrWidth(angle.c_str()), 28);
-  ourOLED.setCursor(0, 28);
-  ourOLED.print(angle.c_str());
-  ourOLED.print(":");
-  ourOLED.print((char) 176);
-  ourOLED.print((char) 58);
-  ourOLED.print(":");
+  String str = "";
+  str += String(getRoundedAngle(), 1);
+  str += String((char) 176);
+  ourOLED.setCursor(64-ourOLED.getStrWidth(str.c_str()), 18);
+  ourOLED.print(str.c_str());
+
+  str = String(getRoundedAmplitude(), 1);
+  ourOLED.setCursor(118-ourOLED.getStrWidth(str.c_str()), 18);
+  ourOLED.print(str.c_str());
+  ourOLED.setFont(oledFontSmall);  
+  str = F("mm");
+  ourOLED.setCursor(118, 18);
+  ourOLED.print(str.c_str());
+
+  ourOLED.setFont(oledFontNormal);
+  ourOLED.setCursor(0, 32);
+  ourOLED.print(F("RT="));
+  ourOLED.print(ourRudderSize, 1);
+  ourOLED.print(F("mm"));
 }
 
 /**
@@ -664,16 +679,24 @@ void showOLEDMenu(const char* aItems[], uint8_t aNumItems) {
     ourOLED.drawStr(0,21+i*11, aItems[getModulo(ourRotaryMenuPosition+i, aNumItems)]);
   }
 }
+void showOLEDInfoPage() {
+  ourOLED.setFont(oledFontNormal);
+  ourOLED.setCursor(0, 12);
+  ourOLED.print(F("IP:"));
+  if (WiFi.status() == WL_CONNECTED) {
+    ourOLED.print(WiFi.localIP().toString());
+  }
+}
 
 void showOLEDDebugInfo() {
   ourOLED.setFont(oledFontNormal);
-  ourOLED.setCursor(0, 8);
+  ourOLED.setCursor(0, 10);
   ourOLED.print(F("D1:"));
   ourOLED.print(ourDebug1);
-  ourOLED.setCursor(0, 16);
+  ourOLED.setCursor(0, 21);
   ourOLED.print(F("D2:"));
   ourOLED.print(ourDebug2);
-  ourOLED.setCursor(0, 24);
+  ourOLED.setCursor(0, 32);
   ourOLED.print(F("D3:"));
   ourOLED.print(ourDebug3);
 }
@@ -697,12 +720,9 @@ void showOLEDSetRudderDepth() {
 void showOLEDServoPositionPage(int16_t aPosition) {
   ourOLED.setDrawColor(1);
   ourOLED.setFontMode(0);
-  ourOLED.setFont(oledFontLarge);
-  // ourOLED.setCursor(22, 24);
-  // ourOLED.print(aPosition);
-  // ourOLED.print(F("%"));
+  ourOLED.setFont(oledFontBig);
   String position = String(aPosition) + F("%");
-  ourOLED.setCursor(128-ourOLED.getStrWidth(position.c_str()), 24);
+  ourOLED.setCursor(127-ourOLED.getStrWidth(position.c_str()), 24);
   ourOLED.print(position.c_str());
   ourOLED.setFont(oledFontSmall);
   ourOLED.setCursor(20, 32);
@@ -713,23 +733,64 @@ void showOLEDServoPositionPage(int16_t aPosition) {
     case RE_MULITPLIER_NORMAL:
       ourOLED.print(F("o"));
       break;
-    case RE_MULITPLIER_FAST:
-      ourOLED.print(F("O"));
-      break;
   } 
   ourOLED.print(F(":"));
   ourOLED.print(F("I="));
   ourOLED.print(ourServoCurrent, 1);
   ourOLED.print(F("A"));
-  ourOLED.print(F(":Raw I="));
-  ourOLED.print(mySmoothedCurrent);
+  // ourOLED.print(F(":Raw I="));
+  // ourOLED.print(mySmoothedCurrent);
   // showServoPosition(0, 13, 64, 5, (150.0f+aPosition)/300);
   showServoPositionVertical(0, 0, 18, 32, (150.0f-aPosition)/300);
+}
 
-  ourOLED.setCursor(24, 7);
-  ourOLED.setFont(oledFontSmall);
-  String angle = String("Winkel=") + String(getRoundedAngle(), 1) + String("°"); 
-  ourOLED.print(angle.c_str());
+void showOLEDServoPositionAndAnglePage() {
+
+  // showServoPositionHorizontal(0, 0, 64, 13, (150.0f+getServoPosInPercent())/300);
+
+  // ourOLED.setDrawColor(1);
+  // ourOLED.setFontMode(0);
+  ourOLED.setDrawColor(2);
+  ourOLED.setFontMode(1);
+  ourOLED.setFont(oledFontBig);  // 12
+  uint8_t upper = 13;
+  String str;
+  str = String(getServoPosInPercent()) + F("%");
+  ourOLED.setCursor(64-ourOLED.getStrWidth(str.c_str()), upper);
+  ourOLED.print(str.c_str());
+
+  ourOLED.setFont(oledFontNormal);  // 12
+  str = F("mm");
+  ourOLED.setCursor(110, 32);
+  ourOLED.print(str.c_str());
+
+  ourOLED.setFont(oledFontBig);  // 12
+  str = String(getRoundedAmplitude(), 1);
+  ourOLED.setCursor(108-ourOLED.getStrWidth(str.c_str()), 32);
+  ourOLED.print(str.c_str());
+
+  str = String(getRoundedAngle(), 1) + String((char) 176);
+  ourOLED.setCursor(128-ourOLED.getStrWidth(str.c_str()), upper);
+  ourOLED.print(str.c_str());
+
+ ourOLED.setFont(oledFontSmall);
+ ourOLED.setCursor(0, upper);
+ switch(ourRotaryEncoderMultiplier) {
+   case RE_MULITPLIER_SLOW:
+     ourOLED.print(F("."));
+     break;
+   case RE_MULITPLIER_NORMAL:
+     ourOLED.print(F("o"));
+     break;
+ } 
+ ourOLED.setCursor(0, 24);
+ ourOLED.print(F("I="));
+ ourOLED.print(ourServoCurrent, 1);
+ ourOLED.print(F("A"));
+ ourOLED.setCursor(0, 32);
+ ourOLED.print(F("RT="));
+ ourOLED.print(ourRudderSize, 1);
+ ourOLED.print(F("mm"));
 }
 
 void showServoPositionVertical(int x, int y, int w, int h, float value) {
@@ -737,9 +798,9 @@ void showServoPositionVertical(int x, int y, int w, int h, float value) {
     ourOLED.drawBox(x + 2, y + 2, (w - 4),  (h - 3) * value);
 }
 
-void showServoPosition(int x, int y, int w, int h, float value) {
-    ourOLED.drawFrame(x, y, w,  h);
-    ourOLED.drawBox(x + 2, y + 2, (w - 4) * value,  h - 3);
+void showServoPositionHorizontal(int x, int y, int w, int h, float value) {
+    // ourOLED.drawFrame(x, y, w,  h);
+    ourOLED.drawBox(x, y, (w) * value,  h);
 }
 
 void updateOLED(unsigned long aNow) {
@@ -753,14 +814,17 @@ void updateOLED(unsigned long aNow) {
   ourOLED.firstPage();
   do {
     switch (ourContext) {
+      case MULTI_TOOL_PAGE:
+        showOLEDServoPositionAndAnglePage();
+        break;
       case SERVO_PAGE:
         showOLEDServoPositionPage(getServoPosInPercent());
         break;
       case ANGLE_SENSOR_PAGE:
         showOLEDAngleSensorPage();
         break;
-      case SERVO_MENU_PAGE:
-        showOLEDMenu(ourServoMenuItems, ourServoMenuSize);
+      case INFO_PAGE:
+        showOLEDInfoPage();
         break;
       case DEBUG_PAGE:
         showOLEDDebugInfo();
@@ -770,6 +834,12 @@ void updateOLED(unsigned long aNow) {
         break;
       case SET_RUDDER_DEPTH:
         showOLEDSetRudderDepth();
+        break;
+      case SERVO_MENU_PAGE:
+        showOLEDMenu(ourServoMenuItems, ourServoMenuSize);
+        break;
+      case ANGLE_MENU_PAGE:
+        showOLEDMenu(ourAngleMenuItems, ourAngleMenuSize);
         break;
       case BASE_MENU_PAGE:
       default: // MENU
@@ -788,7 +858,9 @@ void updateOLED(unsigned long aNow) {
 
 void setupRotaryEncoder() {
   ourRotaryEncoderMultiplier = RE_MULITPLIER_NORMAL;
+  resetRotaryEncoder();
 }
+
 void setupPushButton() {
   // BUTTON SETUP 
   // INPUT_PULLUP for bare ourSignalButton connected from GND to input pin
@@ -813,8 +885,7 @@ void updatePushButton(unsigned long aNow) {
   #define MULTI_PRESS_REACTION_TIME 700
 
   // save the button press history
-  boolean buttonPressed = ourPushButton.pressed();
-  if (buttonPressed) {
+  if (ourPushButton.pressed()) {
     for (int i=4; i>0; i--) {
       history[i] = history[i-1];
     }
@@ -831,33 +902,66 @@ void updatePushButton(unsigned long aNow) {
     logMsg(INFO, F("Button pressed: ") + String(buttonCnt));
     reactOnMultiplePressed = history[buttonCnt-1] + MULTI_PRESS_REACTION_TIME;
 
+  } else if (ourPushButton.isPressed()) {
   }
     
+  if (reactOnMultiplePressed) {
+    controlRotaryEncoder(false);
+  }
 
   if (reactOnMultiplePressed && aNow > reactOnMultiplePressed) {
+    controlRotaryEncoder(true);
     reactOnMultiplePressed=0;
+    static ToolContext backContext=BASE_MENU_PAGE;
+
     CLEAR_HISTORY;
     switch (buttonCnt) {
       case 1:
         switch (ourContext) {
+          case ANGLE_SENSOR_PAGE:
+            // save the context for back jump
+            backContext=ourContext;
+
+            ourContext=ANGLE_MENU_PAGE;
+            resetRotaryEncoder();
+            break;
           case SERVO_PAGE:
-            // buzzOn(10);
-            // setServoPosInPercent(0);
+          case MULTI_TOOL_PAGE:
+            // save the context for back jump
+            backContext=ourContext;
+
             ourContext=SERVO_MENU_PAGE;
             resetRotaryEncoder();
+            break;
+          case ANGLE_MENU_PAGE:
+            switch (getModulo(ourRotaryMenuPosition, ourAngleMenuSize)){
+              case 0: //  "0:Tara-Winkel";
+                taraAngle();
+                ourContext=backContext;
+                resetRotaryEncoder();
+                break;
+              case 1: //  "1:Setze Rudertiefe";
+                ourContext=SET_RUDDER_DEPTH;
+                resetRotaryEncoder();
+                break;
+              case 2: //  "2:Hauptmenu";
+                ourContext=BASE_MENU_PAGE;
+                resetRotaryEncoder();
+                break;
+            }
             break;
           case SERVO_MENU_PAGE:
             switch (getModulo(ourRotaryMenuPosition, ourServoMenuSize)){
               case 0:
                 // "0:Servo-Pos=0%";
                 setServoPosInPercent(0);
-                ourContext=SERVO_PAGE;
+                ourContext=backContext;
                 resetRotaryEncoder();
                 break;
               case 1:
                 // "1:Tara-Winkel";
                 taraAngle();
-                ourContext=SERVO_PAGE;
+                ourContext=backContext;
                 resetRotaryEncoder();
                 break;
               case 2:
@@ -872,55 +976,68 @@ void updatePushButton(unsigned long aNow) {
                 break;
               case 4:
                 // "4:zurück";
-                ourContext=SERVO_PAGE;
+                ourContext=backContext;
+                resetRotaryEncoder();
+                break;
+              case 5:
+                // "5:Hauptmenu";
+                ourContext=BASE_MENU_PAGE;
                 resetRotaryEncoder();
                 break;
             }
             break;
           case SET_SERVO_STEPS:
-            ourContext=SERVO_PAGE;
+            ourContext=backContext;
             resetRotaryEncoder();
             break;
           case SET_RUDDER_DEPTH:
-            ourContext=SERVO_PAGE;
+            ourContext=backContext;
             resetRotaryEncoder();
             break;
           case BASE_MENU_PAGE:
             switch (getModulo(ourRotaryMenuPosition, ourBaseMenuSize)){
-              case 0:
+              case 0: // "0:Multi-Tool";
+                ourContext = MULTI_TOOL_PAGE;
+                resetRotaryEncoder();
+                break;
+              case 1: // "1:Servocontroller";
                 ourContext = SERVO_PAGE;
                 resetRotaryEncoder();
                 break;
-              case 1:
+              case 2: // "2:Winkelmesser";
                 ourContext = ANGLE_SENSOR_PAGE;
                 resetRotaryEncoder();
                 break;
-              case 2:
+              case 3: // "3:Infos";
+                ourContext = INFO_PAGE;
+                resetRotaryEncoder();
+                break;
+              case 4: // "4:Debug-Anzeige";
                 ourContext = DEBUG_PAGE;
                 resetRotaryEncoder();
                 break;
             }
             break;
-          case ANGLE_SENSOR_PAGE:
-            taraAngle();
+          case INFO_PAGE:
+            ourContext=backContext;
+            break;
+          case DEBUG_PAGE:
+            ourContext=backContext;
             break;
         } 
         break;
       case 2:
         switch (ourContext) {
           case SERVO_PAGE:
+          case MULTI_TOOL_PAGE:
             switch(ourRotaryEncoderMultiplier) {
               case RE_MULITPLIER_SLOW:
                 ourRotaryEncoderMultiplier = RE_MULITPLIER_NORMAL;
                 break;
-              case RE_MULITPLIER_NORMAL:
-                ourRotaryEncoderMultiplier = RE_MULITPLIER_FAST;
-                break;
-              default :
+              default:
                 ourRotaryEncoderMultiplier = RE_MULITPLIER_SLOW;
                 break;
             }
-            ourOLEDLogString = "x=" + String(ourRotaryEncoderMultiplier);
           break;
           case ANGLE_SENSOR_PAGE:
             // invert the sensor angle
@@ -940,6 +1057,9 @@ void updatePushButton(unsigned long aNow) {
   }
 }
 
+static boolean ourREState = true;
+static long ourRERaw = 0; 
+static long ourREPos = 0;
 static long ourREOldPos  = 0;
 void resetRotaryEncoder() {
   ourRotaryEncoder.write(0);
@@ -951,21 +1071,57 @@ void resetRotaryEncoder() {
   ourDebug3 = 0;
 }
 
+void controlRotaryEncoder(boolean aStart) {
+  static boolean old = 0;
+  if (aStart && !ourREState) {
+    ourRotaryEncoder.write(old);
+    ourREState = true;
+  }
+  if (!aStart && ourREState) {
+    old = ourRotaryEncoder.read();
+    ourREState = false;
+  }
+}
+
 void updateRotaryEncoder(unsigned long aNow) {
-  long position = ourRotaryEncoder.read()/4;
+  if (!ourREState) {
+    // rotary encoder is disabled (e.g. while button pressed handling)
+    return;
+  }
+  static float mySmoothedPos = 0.0f;
+  ourRERaw = ourRotaryEncoder.read();
+  // supress the four micro steps of the encoder 
+  if (ourRERaw < -2) {
+    ourREPos = (ourRERaw-1)/4;
+  } else {
+    ourREPos = (ourRERaw+2)/4;
+  }
+
+  mySmoothedPos = ourREPos + 0.001 * (mySmoothedPos - ourREPos);
+  ourDebug1 = ourRERaw;
+  ourDebug2 = ourREPos;
+  ourDebug3 = mySmoothedPos;
+  long position = mySmoothedPos;
+  // position = ourREPos;
   if (position != ourREOldPos) {
     int8_t delta = position - ourREOldPos;
     ourRotaryEncoderPosition = position;
-    ourRotaryMenuPosition = position/3;
-    ourDebug1 = position;
-    ourDebug2 = ourRotaryEncoderPosition;
-    ourDebug3 = ourRotaryMenuPosition/2;
+    // IIR Low Pass Filter
+    // y[i] := α * x[i] + (1-α) * y[i-1]
+    //      := y[i-1] + α * (x[i] - y[i-1])
+    // mit α = 1- β
+    // y[i] := (1-β) * x[i] + β * y[i-1]
+    //      := x[i] - β * x[i] + β * y[i-1]
+    //      := x[i] + β (y[i-1] - x[i])
+    // see: https://en.wikipedia.org/wiki/Low-pass_filter#Simple_infinite_impulse_response_filter
+    ourRotaryMenuPosition = position;
 
     // encoder changes value 3 per grid step
     // logMsg(INFO, F("Encoder:") + String(ourRotaryEncoderPosition));
     // logMsg(INFO, F("Encoder mod:") + String(ourRotaryEncoderPosition));
 
     switch (ourContext) {
+      case MULTI_TOOL_PAGE:
       case SERVO_PAGE:
         {
           int16_t servoPos = getServoPosInMicroSeconds();
@@ -982,12 +1138,9 @@ void updateRotaryEncoder(unsigned long aNow) {
         break;
       case SET_SERVO_STEPS:
         {
-          uint8_t steps = getModulo(position, 3);
+          uint8_t steps = getModulo(position, 2);
           switch (steps) {
             case 1:
-              ourRotaryEncoderMultiplier = RE_MULITPLIER_FAST;
-              break;
-            case 2:
               ourRotaryEncoderMultiplier = RE_MULITPLIER_SLOW;
               break;
             default :
@@ -997,6 +1150,10 @@ void updateRotaryEncoder(unsigned long aNow) {
         break;
       case SET_RUDDER_DEPTH:
         ourRudderSize += delta;
+        break;
+      case BASE_MENU_PAGE:
+      case SERVO_MENU_PAGE:
+        buzzOn(2);
         break;
     }
     ourREOldPos = position;
