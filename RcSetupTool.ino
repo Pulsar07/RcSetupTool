@@ -39,7 +39,7 @@ D8 : Buzzer
 static const char myName[] = "RcSetupTool";
 long ourDebug1;
 long ourDebug2;
-long ourDebug3;
+String ourDebug3;
 
 
 
@@ -123,8 +123,9 @@ Bounce2::Button ourPushButton = Bounce2::Button();
 // V0.162 : expert menu now as a separate button, and AJAX get requets will work with ESP32 web server
 // V0.170 : first draft: support for working OLED GUI for servo page, angle page and settings for angle tara, rudder depth, servo steps and servo null value
 // V0.171 : second draft: more menus and settings an enhance GUI vor the 128x32 OLED
+// V0.172 : bug fix: current smoothing disabled, menu back handling with one click fixed
 
-#define APP_VERSION "V0.171"
+#define APP_VERSION "V0.172"
 
 /**
  * \file RcSetupTool.ino
@@ -670,7 +671,7 @@ int8_t getModulo(long aDivident, uint8_t aDivisor) {
 }
 
 void showOLEDMenu(const char* aItems[], uint8_t aNumItems) {
-  ourOLED.drawBox(0, 11, 128, 10);
+  ourOLED.drawBox(0, 11, 128, 11);
   ourOLED.setDrawColor(2);
   ourOLED.setFontMode(1);
   ourOLED.setFont(oledFontNormal);
@@ -679,9 +680,14 @@ void showOLEDMenu(const char* aItems[], uint8_t aNumItems) {
     ourOLED.drawStr(0,21+i*11, aItems[getModulo(ourRotaryMenuPosition+i, aNumItems)]);
   }
 }
+
 void showOLEDInfoPage() {
   ourOLED.setFont(oledFontNormal);
   ourOLED.setCursor(0, 12);
+  ourOLED.print(myName);
+  ourOLED.print(" ");
+  ourOLED.print(APP_VERSION);
+  ourOLED.setCursor(0, 24);
   ourOLED.print(F("IP:"));
   if (WiFi.status() == WL_CONNECTED) {
     ourOLED.print(WiFi.localIP().toString());
@@ -1009,10 +1015,12 @@ void updatePushButton(unsigned long aNow) {
                 resetRotaryEncoder();
                 break;
               case 3: // "3:Infos";
+                backContext=ourContext;
                 ourContext = INFO_PAGE;
                 resetRotaryEncoder();
                 break;
               case 4: // "4:Debug-Anzeige";
+                backContext=ourContext;
                 ourContext = DEBUG_PAGE;
                 resetRotaryEncoder();
                 break;
@@ -1066,9 +1074,6 @@ void resetRotaryEncoder() {
   ourREOldPos = 0;
   ourRotaryEncoderPosition = 0;
   ourRotaryMenuPosition = 0;
-  ourDebug1 = 0;
-  ourDebug2 = 0;
-  ourDebug3 = 0;
 }
 
 void controlRotaryEncoder(boolean aStart) {
@@ -1098,9 +1103,6 @@ void updateRotaryEncoder(unsigned long aNow) {
   }
 
   mySmoothedPos = ourREPos + 0.001 * (mySmoothedPos - ourREPos);
-  ourDebug1 = ourRERaw;
-  ourDebug2 = ourREPos;
-  ourDebug3 = mySmoothedPos;
   long position = mySmoothedPos;
   // position = ourREPos;
   if (position != ourREOldPos) {
@@ -1164,18 +1166,10 @@ void updateRotaryEncoder(unsigned long aNow) {
 #ifdef CURRENT_SENSOR
 void updateCurrentSensor(unsigned long aNow) {
   static unsigned long last=0;
-  #define CURRENT_SENSOR_REFRESH_CYCLE 500
+  #define CURRENT_SENSOR_REFRESH_CYCLE 100
 
-  // IIR Low Pass Filter
-  // y[i] := α * x[i] + (1-α) * y[i-1]
-  //      := y[i-1] + α * (x[i] - y[i-1])
-  // mit α = 1- β
-  // y[i] := (1-β) * x[i] + β * y[i-1]
-  //      := x[i] - β * x[i] + β * y[i-1]
-  //      := x[i] + β (y[i-1] - x[i])
-  // see: https://en.wikipedia.org/wiki/Low-pass_filter#Simple_infinite_impulse_response_filter
   float currentValue = analogRead(A0);
-  mySmoothedCurrent = currentValue + 0.05f * (mySmoothedCurrent - currentValue);
+  ourDebug1 = currentValue;
 
   if (aNow < last) {
     return;
@@ -1185,14 +1179,12 @@ void updateCurrentSensor(unsigned long aNow) {
   // ACS712 : 185mV/A for the ACS712T ELC-05B (5 Ampere max current)
   // ESP8266 : A0 provides 0-1023 for 0 - 3300mV => max resolution: 3.2mV
   const static int zeroCurrentValue = 810;
-  ourServoCurrent = (mySmoothedCurrent - zeroCurrentValue)*3.3/1024/0.185;
+  ourServoCurrent = (currentValue - zeroCurrentValue)*3.3/1024/0.185;
   ourServoCurrent = max(0.0f, ourServoCurrent);
+  ourDebug3 = String(ourServoCurrent,1);
   if (ourServoCurrent > 0.5 ) {
-    buzzOn(100);
+    buzzOn(200);
   }
-  logMsg(INFO, F("ACS712: [current raw]") + String(currentValue));
-  logMsg(INFO, F("ACS712: [smoothed raw]") + String(mySmoothedCurrent));
-  logMsg(INFO, F("ACS712: Current[A]") + String(ourServoCurrent));
 }
 #endif
 
