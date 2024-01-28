@@ -124,8 +124,9 @@ Bounce2::Button ourPushButton = Bounce2::Button();
 // V0.170 : first draft: support for working OLED GUI for servo page, angle page and settings for angle tara, rudder depth, servo steps and servo null value
 // V0.171 : second draft: more menus and settings an enhance GUI vor the 128x32 OLED
 // V0.172 : bug fix: current smoothing disabled, menu back handling with one click fixed
+// V0.173 : bug fix: current / ACS712 handling optimized and some other small enhancements
 
-#define APP_VERSION "V0.172"
+#define APP_VERSION "V0.173"
 
 /**
  * \file RcSetupTool.ino
@@ -730,7 +731,7 @@ void showOLEDServoPositionPage(int16_t aPosition) {
   String position = String(aPosition) + F("%");
   ourOLED.setCursor(127-ourOLED.getStrWidth(position.c_str()), 24);
   ourOLED.print(position.c_str());
-  ourOLED.setFont(oledFontSmall);
+  ourOLED.setFont(oledFontNormal);
   ourOLED.setCursor(20, 32);
   switch(ourRotaryEncoderMultiplier) {
     case RE_MULITPLIER_SLOW:
@@ -811,7 +812,7 @@ void showServoPositionHorizontal(int x, int y, int w, int h, float value) {
 
 void updateOLED(unsigned long aNow) {
   static unsigned long last=0;
-  #define OLED_REFRESH_CYCLE 100
+  #define OLED_REFRESH_CYCLE 200
   if (aNow < last) {
     return;
   }
@@ -960,32 +961,38 @@ void updatePushButton(unsigned long aNow) {
             switch (getModulo(ourRotaryMenuPosition, ourServoMenuSize)){
               case 0:
                 // "0:Servo-Pos=0%";
+                buzzOn(1);
                 setServoPosInPercent(0);
                 ourContext=backContext;
                 resetRotaryEncoder();
                 break;
               case 1:
                 // "1:Tara-Winkel";
+                buzzOn(1);
                 taraAngle();
                 ourContext=backContext;
                 resetRotaryEncoder();
                 break;
               case 2:
                 // "2:Setze Rudertiefe";
+                buzzOn(1);
                 ourContext=SET_RUDDER_DEPTH;
                 resetRotaryEncoder();
                 break;
               case 3:
                 // "3:Setze Servoschritte";
+                buzzOn(1);
                 ourContext=SET_SERVO_STEPS;
                 resetRotaryEncoder();
                 break;
               case 4:
                 // "4:zurück";
+                buzzOn(1);
                 ourContext=backContext;
                 resetRotaryEncoder();
                 break;
               case 5:
+                buzzOn(1);
                 // "5:Hauptmenu";
                 ourContext=BASE_MENU_PAGE;
                 resetRotaryEncoder();
@@ -993,14 +1000,17 @@ void updatePushButton(unsigned long aNow) {
             }
             break;
           case SET_SERVO_STEPS:
+            buzzOn(1);
             ourContext=backContext;
             resetRotaryEncoder();
             break;
           case SET_RUDDER_DEPTH:
+            buzzOn(1);
             ourContext=backContext;
             resetRotaryEncoder();
             break;
           case BASE_MENU_PAGE:
+            buzzOn(1);
             switch (getModulo(ourRotaryMenuPosition, ourBaseMenuSize)){
               case 0: // "0:Multi-Tool";
                 ourContext = MULTI_TOOL_PAGE;
@@ -1027,9 +1037,11 @@ void updatePushButton(unsigned long aNow) {
             }
             break;
           case INFO_PAGE:
+            buzzOn(1);
             ourContext=backContext;
             break;
           case DEBUG_PAGE:
+            buzzOn(1);
             ourContext=backContext;
             break;
         } 
@@ -1093,7 +1105,6 @@ void updateRotaryEncoder(unsigned long aNow) {
     // rotary encoder is disabled (e.g. while button pressed handling)
     return;
   }
-  static float mySmoothedPos = 0.0f;
   ourRERaw = ourRotaryEncoder.read();
   // supress the four micro steps of the encoder 
   if (ourRERaw < -2) {
@@ -1102,8 +1113,10 @@ void updateRotaryEncoder(unsigned long aNow) {
     ourREPos = (ourRERaw+2)/4;
   }
 
-  mySmoothedPos = ourREPos + 0.001 * (mySmoothedPos - ourREPos);
-  long position = mySmoothedPos;
+  static float smoothedPos = 0.0f;
+  smoothedPos = irr_low_pass_filter(smoothedPos, ourREPos, 0.10d);
+  // smoothedPos = ourREPos + 0.001 * (smoothedPos - ourREPos);
+  long position = smoothedPos;
   // position = ourREPos;
   if (position != ourREOldPos) {
     int8_t delta = position - ourREOldPos;
@@ -1123,6 +1136,7 @@ void updateRotaryEncoder(unsigned long aNow) {
     // logMsg(INFO, F("Encoder mod:") + String(ourRotaryEncoderPosition));
 
     switch (ourContext) {
+      case DEBUG_PAGE:
       case MULTI_TOOL_PAGE:
       case SERVO_PAGE:
         {
@@ -1131,7 +1145,7 @@ void updateRotaryEncoder(unsigned long aNow) {
           if (convertMicroSeconds2Percent(servoPos) > 150) servoPos=convertPercent2MicroSeconds(150);
           if (convertMicroSeconds2Percent(servoPos) < -150) servoPos=convertPercent2MicroSeconds(-150);
           if (convertMicroSeconds2Percent(servoPos) == 0 ) {
-            buzzOn(5);
+            buzzOn(1);
           } else if (convertMicroSeconds2Percent(servoPos)%10 == 0 ) {
             // buzzOn(2);
           }
@@ -1155,7 +1169,8 @@ void updateRotaryEncoder(unsigned long aNow) {
         break;
       case BASE_MENU_PAGE:
       case SERVO_MENU_PAGE:
-        buzzOn(2);
+      case ANGLE_MENU_PAGE:
+        buzzOn(1);
         break;
     }
     ourREOldPos = position;
@@ -1168,8 +1183,15 @@ void updateCurrentSensor(unsigned long aNow) {
   static unsigned long last=0;
   #define CURRENT_SENSOR_REFRESH_CYCLE 100
 
-  float currentValue = analogRead(A0);
-  ourDebug1 = currentValue;
+  // one AD step (0-1024) are 17mA for a ACS712 with 0.185V/A and a AD converter of a ESP8266 with 0-3.3V converting 0-1023 
+  const static int zeroCurrentValue = 805;
+  double raw = analogRead(A0);
+  ourDebug1 = raw;
+  double currentValue = raw - zeroCurrentValue;
+
+  static double smoothedCurrent = 0.0f;
+  smoothedCurrent = irr_low_pass_filter(smoothedCurrent, currentValue, 0.96);
+  ourDebug2 = smoothedCurrent;
 
   if (aNow < last) {
     return;
@@ -1178,12 +1200,11 @@ void updateCurrentSensor(unsigned long aNow) {
 
   // ACS712 : 185mV/A for the ACS712T ELC-05B (5 Ampere max current)
   // ESP8266 : A0 provides 0-1023 for 0 - 3300mV => max resolution: 3.2mV
-  const static int zeroCurrentValue = 810;
-  ourServoCurrent = (currentValue - zeroCurrentValue)*3.3/1024/0.185;
+  ourServoCurrent = smoothedCurrent*3.3/1024/0.185;
   ourServoCurrent = max(0.0f, ourServoCurrent);
   ourDebug3 = String(ourServoCurrent,1);
-  if (ourServoCurrent > 0.5 ) {
-    buzzOn(200);
+  if (ourServoCurrent > 0.6 ) {
+    buzzOn(500);
   }
 }
 #endif
