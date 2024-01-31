@@ -70,6 +70,9 @@ typedef struct {
   int servoPresets[CONFIG_SERVO_PRESET_L];
   int servoPulseWidthPairFullRange[2];
   int servoPulseWidthPair100Percent[2];
+  int16_t rudderSize;
+  boolean oledFlipped;
+  boolean rotaryEncoderFlipped;
 } configData_t;
 
 #endif

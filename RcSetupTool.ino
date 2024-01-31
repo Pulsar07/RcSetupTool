@@ -19,6 +19,8 @@ D5 : ServoOut
 D6 : Drehwinkelgeber PushButton
 D7 : Drehwinkelgeber DT
 D8 : Buzzer
+D9 : TX
+D10: RX
 */
 
 #define WIFI_KIT_8 
@@ -64,6 +66,10 @@ Encoder ourRotaryEncoder(D7, D3);
 long ourRotaryEncoderPosition=0;
 long ourRotaryMenuPosition=0;
 uint8_t ourRotaryEncoderMultiplier;
+static boolean ourREState = true;
+static int8_t ourREInversion = 1; 
+static long ourREPos = 0;
+static long ourREOldPos  = 0;
 
 #include <Bounce2.h>
 Bounce2::Button ourPushButton = Bounce2::Button();
@@ -125,8 +131,9 @@ Bounce2::Button ourPushButton = Bounce2::Button();
 // V0.171 : second draft: more menus and settings an enhance GUI vor the 128x32 OLED
 // V0.172 : bug fix: current smoothing disabled, menu back handling with one click fixed
 // V0.173 : bug fix: current / ACS712 handling optimized and some other small enhancements
+// V0.174 : new settings for buzzer, angle and rudder inversion and save config 
 
-#define APP_VERSION "V0.173"
+#define APP_VERSION "V0.174"
 
 /**
  * \file RcSetupTool.ino
@@ -348,7 +355,6 @@ static double ourSmoothedGyro_z = 0;
 static double ourTaraGyro_x = 0;
 static double ourTaraGyro_y = 0;
 static double ourTaraGyro_z = 0;
-static double ourRudderSize = 30;
 static double ourTargetAmplitude = 5;
 
 static float ourNullAmpl;
@@ -358,44 +364,65 @@ static boolean ourIsMeasureActive=false;
 float mySmoothedCurrent = 0.0f;
 float ourServoCurrent;
 
+static unsigned long ourBuzzTimeTill = 0;
+static boolean ourBuzzOn = false; 
+static boolean ourBuzzerEnabled = true;
+
 enum ToolContext {
   BASE_MENU_PAGE,
   SERVO_MENU_PAGE,
   ANGLE_MENU_PAGE,
+  SETTINGS_MENU_PAGE,
   SERVO_PAGE,
   ANGLE_SENSOR_PAGE,
   MULTI_TOOL_PAGE,
   ADMIN_PAGE,
   SET_SERVO_STEPS,
   SET_RUDDER_DEPTH,
+  SET_RUDDER_INVERS,
+  SET_ANGLE_INVERS,
   EXPERT_ADMIN_PAGE,
   INFO_PAGE,
   DEBUG_PAGE,
 };
 
 ToolContext ourContext=BASE_MENU_PAGE;
+
 const char* ourBaseMenu0 = "0:Multi-Tool";
 const char* ourBaseMenu1 = "1:Servocontroller";
 const char* ourBaseMenu2 = "2:Winkelmesser";
-const char* ourBaseMenu3 = "3:Infos";
-const char* ourBaseMenu4 = "4:Debug-Anzeige";
-const char* ourBaseMenuItems[] = {ourBaseMenu0, ourBaseMenu1, ourBaseMenu2, ourBaseMenu3, ourBaseMenu4};
+const char* ourBaseMenu3 = "3:Einstellungen";
+const char* ourBaseMenu4 = "4:Infos";
+const char* ourBaseMenu5 = "5:Debug-Anzeige";
+const char* ourBaseMenuItems[] = {ourBaseMenu0, ourBaseMenu1, ourBaseMenu2, ourBaseMenu3, ourBaseMenu4, ourBaseMenu5};
 const uint8_t ourBaseMenuSize = sizeof(ourBaseMenuItems) / sizeof(char*);;
 
 const char* ourServoMenu0 = "0:Servo-Pos=0%";
 const char* ourServoMenu1 = "1:Tara-Winkel";
-const char* ourServoMenu2 = "2:Setze Rudertiefe";
-const char* ourServoMenu3 = "3:Setze Servoschritte";
-const char* ourServoMenu4 = "4:zurueck";
-const char* ourServoMenu5 = "5:Hauptmenu";
-const char* ourServoMenuItems[] = {ourServoMenu0, ourServoMenu1, ourServoMenu2, ourServoMenu3, ourServoMenu4, ourServoMenu5};
+const char* ourServoMenu2 = "2:Inv.Winkelanzeige";
+const char* ourServoMenu3 = "3:Setze Rudertiefe";
+const char* ourServoMenu4 = "4:Inv. Ruderanzeige";
+const char* ourServoMenu5 = "5:Setze Servoschritte";
+const char* ourServoMenu6 = "6:zurueck";
+const char* ourServoMenu7 = "7:Hauptmenu";
+const char* ourServoMenuItems[] = {ourServoMenu0, ourServoMenu1, ourServoMenu2, ourServoMenu3, ourServoMenu4, ourServoMenu5, ourServoMenu6, ourServoMenu7};
 const uint8_t ourServoMenuSize = sizeof(ourServoMenuItems) / sizeof(char*);;
 
 const char* ourAngleMenu0 = "0:Tara-Winkel";
-const char* ourAngleMenu1 = "1:Setze Rudertiefe";
-const char* ourAngleMenu2 = "2:Hauptmenu";
-const char* ourAngleMenuItems[] = {ourAngleMenu0, ourAngleMenu1, ourAngleMenu2};
+const char* ourAngleMenu1 = "1:Inv.Winkelanzeige";
+const char* ourAngleMenu2 = "2:Setze Rudertiefe";
+const char* ourAngleMenu3 = "3:Inv. Ruderanzeige";
+const char* ourAngleMenu4 = "4:Hauptmenu";
+const char* ourAngleMenuItems[] = {ourAngleMenu0, ourAngleMenu1, ourAngleMenu2, ourAngleMenu3, ourAngleMenu4};
 const uint8_t ourAngleMenuSize = sizeof(ourAngleMenuItems) / sizeof(char*);;
+
+const char* ourSettingsMenu0 = "0:Buzzer an/aus";
+const char* ourSettingsMenu1 = "1:Anzeige drehen";
+const char* ourSettingsMenu2 = "2:Drehknopf invert.";
+const char* ourSettingsMenu3 = "3:Sichere Einstell.";
+const char* ourSettingsMenu4 = "4:Hauptmenu";
+const char* ourSettingsMenuItems[] = {ourSettingsMenu0, ourSettingsMenu1, ourSettingsMenu2, ourSettingsMenu3, ourSettingsMenu4};
+const uint8_t ourSettingsMenuSize = sizeof(ourSettingsMenuItems) / sizeof(char*);;
 
 #define MIN_PULSE_WITDH 700 // us
 #define MAX_PULSE_WITDH 2300 // us
@@ -621,6 +648,7 @@ void setupDisplay() {
   oledFontBig    = u8g2_font_helvB14_tf;
   oledFontNormal = u8g2_font_7x13B_tf; // u8g2_font_helvB08_tf;
   oledFontSmall  = u8g2_font_5x7_tr; 
+  ourOLED.setFlipMode(ourConfig.oledFlipped);
   ourOLED.firstPage();
   do {
     showHello();
@@ -659,7 +687,7 @@ void showOLEDAngleSensorPage() {
   ourOLED.setFont(oledFontNormal);
   ourOLED.setCursor(0, 32);
   ourOLED.print(F("RT="));
-  ourOLED.print(ourRudderSize, 1);
+  ourOLED.print(ourConfig.rudderSize, 1);
   ourOLED.print(F("mm"));
 }
 
@@ -667,7 +695,7 @@ void showOLEDAngleSensorPage() {
   return the math result of a modulo operation instead of the symmetric (as implemented in the %-operator
 */
 int8_t getModulo(long aDivident, uint8_t aDivisor) {
-  // Umrechnung der Modulo Resultate von der in C++ implementierten symmetrischen Modulo-Variante in die mahtematische Variante
+  // Umrechnung der Modulo Resultate von der in C++ implementierten symmetrischen Modulo-Variante in die mathematische Variante
   return ((aDivident % aDivisor) + aDivisor) % aDivisor;
 }
 
@@ -720,7 +748,7 @@ void showOLEDSetRudderDepth() {
   ourOLED.setFont(oledFontNormal);
   ourOLED.setCursor(0, 15);
   ourOLED.print("Rudertiefe=");
-  ourOLED.print(String(ourRudderSize, 1));
+  ourOLED.print(String(ourConfig.rudderSize));
   ourOLED.print("mm");
 }
 
@@ -796,7 +824,7 @@ void showOLEDServoPositionAndAnglePage() {
  ourOLED.print(F("A"));
  ourOLED.setCursor(0, 32);
  ourOLED.print(F("RT="));
- ourOLED.print(ourRudderSize, 1);
+ ourOLED.print(ourConfig.rudderSize);
  ourOLED.print(F("mm"));
 }
 
@@ -845,6 +873,9 @@ void updateOLED(unsigned long aNow) {
       case SERVO_MENU_PAGE:
         showOLEDMenu(ourServoMenuItems, ourServoMenuSize);
         break;
+      case SETTINGS_MENU_PAGE:
+        showOLEDMenu(ourSettingsMenuItems, ourSettingsMenuSize);
+        break;
       case ANGLE_MENU_PAGE:
         showOLEDMenu(ourAngleMenuItems, ourAngleMenuSize);
         break;
@@ -865,6 +896,7 @@ void updateOLED(unsigned long aNow) {
 
 void setupRotaryEncoder() {
   ourRotaryEncoderMultiplier = RE_MULITPLIER_NORMAL;
+  ourREInversion = ourConfig.rotaryEncoderFlipped ? -1 : 1;
   resetRotaryEncoder();
 }
 
@@ -940,25 +972,76 @@ void updatePushButton(unsigned long aNow) {
             ourContext=SERVO_MENU_PAGE;
             resetRotaryEncoder();
             break;
-          case ANGLE_MENU_PAGE:
-            switch (getModulo(ourRotaryMenuPosition, ourAngleMenuSize)){
-              case 0: //  "0:Tara-Winkel";
-                taraAngle();
-                ourContext=backContext;
-                resetRotaryEncoder();
+          case SETTINGS_MENU_PAGE:  // -> ourSettingsMenuItems
+            switch (getModulo(ourRotaryMenuPosition, ourSettingsMenuSize)){ // !! use the right size here !!
+              case 0: // "0:Buzzer an/aus";
+                ourBuzzerEnabled = ourBuzzerEnabled == true? false: true;
+                buzzOn(1);
                 break;
-              case 1: //  "1:Setze Rudertiefe";
-                ourContext=SET_RUDDER_DEPTH;
-                resetRotaryEncoder();
+              case 1: // "1:Anzeige drehen";
+                buzzOn(1);
+                ourConfig.oledFlipped = ourConfig.oledFlipped == true? false: true;
+                ourOLED.setFlipMode(ourConfig.oledFlipped);
                 break;
-              case 2: //  "2:Hauptmenu";
+              case 2: // "2:Drehknopf invert.";
+                buzzOn(1);
+                ourConfig.rotaryEncoderFlipped = ourConfig.rotaryEncoderFlipped ? false: true;
+                ourREInversion = ourConfig.rotaryEncoderFlipped ? -1 : 1;
+                {
+                  for (uint8_t i = 0; i < 254; i++) {
+                    ourRotaryEncoder.write(i);
+                    if ( 2 == getModulo(getRotaryEncoderPosition(), ourSettingsMenuSize)) {
+                      ourRotaryEncoder.write(i+2);
+                      break; // for loop}
+                    }
+                  }
+                }
+                break;
+              case 3: //  "3:Sichere Einstell.";
+                buzzOn(1);
+                saveConfig();
+                break;
+              case 4: // "4:Hauptmenu";
+                buzzOn(1);
                 ourContext=BASE_MENU_PAGE;
                 resetRotaryEncoder();
                 break;
             }
             break;
-          case SERVO_MENU_PAGE:
-            switch (getModulo(ourRotaryMenuPosition, ourServoMenuSize)){
+          case ANGLE_MENU_PAGE:  // -> ourAngleMenuItems
+            switch (getModulo(ourRotaryMenuPosition, ourAngleMenuSize)){  // !! use the right size here !!
+              case 0: //  "0:Tara-Winkel";
+                buzzOn(1);
+                taraAngle();
+                ourContext=backContext;
+                resetRotaryEncoder();
+                break;
+              case 1: //  "1:Inv. Winkelanzeige";
+                buzzOn(1);
+                ourConfig.angleInversion = ourConfig.angleInversion == 1 ? -1 : 1;
+                ourContext=backContext;
+                resetRotaryEncoder();
+                break;
+              case 2: //  "2:Setze Rudertiefe";
+                buzzOn(1);
+                ourContext=SET_RUDDER_DEPTH;
+                resetRotaryEncoder();
+                break;
+              case 3: //  "3:Inv. Ruderanzeige";
+                buzzOn(1);
+                ourConfig.amplitudeInversion = ourConfig.amplitudeInversion == 1 ? -1 : 1;
+                ourContext=backContext;
+                resetRotaryEncoder();
+                break;
+              case 4: //  "4:Hauptmenu";
+                buzzOn(1);
+                ourContext=BASE_MENU_PAGE;
+                resetRotaryEncoder();
+                break;
+            }
+            break;
+          case SERVO_MENU_PAGE: // -> ourServoMenuItems
+            switch (getModulo(ourRotaryMenuPosition, ourServoMenuSize)){  // !! use the right size here !!
               case 0:
                 // "0:Servo-Pos=0%";
                 buzzOn(1);
@@ -973,27 +1056,39 @@ void updatePushButton(unsigned long aNow) {
                 ourContext=backContext;
                 resetRotaryEncoder();
                 break;
-              case 2:
-                // "2:Setze Rudertiefe";
+              case 2: //  "2:Inv. Winkelanzeige";
+                buzzOn(1);
+                ourConfig.angleInversion = ourConfig.angleInversion == 1 ? -1 : 1;
+                ourContext=backContext;
+                resetRotaryEncoder();
+                break;
+              case 3:
+                // "3:Setze Rudertiefe";
                 buzzOn(1);
                 ourContext=SET_RUDDER_DEPTH;
                 resetRotaryEncoder();
                 break;
-              case 3:
-                // "3:Setze Servoschritte";
+              case 4: //  "4:Inv. Ruderanzeige";
                 buzzOn(1);
-                ourContext=SET_SERVO_STEPS;
-                resetRotaryEncoder();
-                break;
-              case 4:
-                // "4:zurück";
-                buzzOn(1);
+                ourConfig.amplitudeInversion = ourConfig.amplitudeInversion == 1 ? -1 : 1;
                 ourContext=backContext;
                 resetRotaryEncoder();
                 break;
               case 5:
+                // "5:Setze Servoschritte";
                 buzzOn(1);
-                // "5:Hauptmenu";
+                ourContext=SET_SERVO_STEPS;
+                resetRotaryEncoder();
+                break;
+              case 6:
+                // "6:zurück";
+                buzzOn(1);
+                ourContext=backContext;
+                resetRotaryEncoder();
+                break;
+              case 7:
+                buzzOn(1);
+                // "7:Hauptmenu";
                 ourContext=BASE_MENU_PAGE;
                 resetRotaryEncoder();
                 break;
@@ -1013,23 +1108,34 @@ void updatePushButton(unsigned long aNow) {
             buzzOn(1);
             switch (getModulo(ourRotaryMenuPosition, ourBaseMenuSize)){
               case 0: // "0:Multi-Tool";
+                buzzOn(1);
                 ourContext = MULTI_TOOL_PAGE;
                 resetRotaryEncoder();
                 break;
               case 1: // "1:Servocontroller";
+                buzzOn(1);
                 ourContext = SERVO_PAGE;
                 resetRotaryEncoder();
                 break;
               case 2: // "2:Winkelmesser";
+                buzzOn(1);
                 ourContext = ANGLE_SENSOR_PAGE;
                 resetRotaryEncoder();
                 break;
-              case 3: // "3:Infos";
+              case 3: // "3:Einstellungen";
+                buzzOn(1);
+                backContext=ourContext;
+                ourContext = SETTINGS_MENU_PAGE;
+                resetRotaryEncoder();
+                break;
+              case 4: // "4:Infos";
+                buzzOn(1);
                 backContext=ourContext;
                 ourContext = INFO_PAGE;
                 resetRotaryEncoder();
                 break;
-              case 4: // "4:Debug-Anzeige";
+              case 5: // "5:Debug-Anzeige";
+                buzzOn(1);
                 backContext=ourContext;
                 ourContext = DEBUG_PAGE;
                 resetRotaryEncoder();
@@ -1077,10 +1183,6 @@ void updatePushButton(unsigned long aNow) {
   }
 }
 
-static boolean ourREState = true;
-static long ourRERaw = 0; 
-static long ourREPos = 0;
-static long ourREOldPos  = 0;
 void resetRotaryEncoder() {
   ourRotaryEncoder.write(0);
   ourREOldPos = 0;
@@ -1088,16 +1190,30 @@ void resetRotaryEncoder() {
   ourRotaryMenuPosition = 0;
 }
 
+// with this function the rotary encoder can be disabled, to avoid unwanted rotation events
 void controlRotaryEncoder(boolean aStart) {
-  static boolean old = 0;
+  static long storedPos = 0;
   if (aStart && !ourREState) {
-    ourRotaryEncoder.write(old);
+    ourRotaryEncoder.write(storedPos);
     ourREState = true;
   }
   if (!aStart && ourREState) {
-    old = ourRotaryEncoder.read();
+    storedPos = ourRotaryEncoder.read();
     ourREState = false;
   }
+}
+
+
+long getRotaryEncoderPosition() {
+  long raw = ourRotaryEncoder.read();
+  long pos;
+  // suppress the four micro steps of the encoder 
+  if (raw < -2) {
+    pos = (raw-1)/4 * ourREInversion;
+  } else {
+    pos = (raw+2)/4 * ourREInversion; 
+  }
+  return pos;
 }
 
 void updateRotaryEncoder(unsigned long aNow) {
@@ -1105,13 +1221,8 @@ void updateRotaryEncoder(unsigned long aNow) {
     // rotary encoder is disabled (e.g. while button pressed handling)
     return;
   }
-  ourRERaw = ourRotaryEncoder.read();
-  // supress the four micro steps of the encoder 
-  if (ourRERaw < -2) {
-    ourREPos = (ourRERaw-1)/4;
-  } else {
-    ourREPos = (ourRERaw+2)/4;
-  }
+  
+  ourREPos = getRotaryEncoderPosition();
 
   static float smoothedPos = 0.0f;
   smoothedPos = irr_low_pass_filter(smoothedPos, ourREPos, 0.10d);
@@ -1165,7 +1276,7 @@ void updateRotaryEncoder(unsigned long aNow) {
         }
         break;
       case SET_RUDDER_DEPTH:
-        ourRudderSize += delta;
+        ourConfig.rudderSize += delta;
         break;
       case BASE_MENU_PAGE:
       case SERVO_MENU_PAGE:
@@ -1209,8 +1320,6 @@ void updateCurrentSensor(unsigned long aNow) {
 }
 #endif
 
-static unsigned long ourBuzzTimeTill = 0;
-static boolean ourBuzzOn = false; 
 
 void setupBuzzer() {
   Serial.println(F("setupBuzzer"));
@@ -1220,6 +1329,9 @@ void setupBuzzer() {
 
 void buzzOn(uint16_t aDuration) {
   #ifndef NOBUZZ
+  if (!ourBuzzerEnabled) {
+    return;
+  }
   if (ourBuzzOn) {
     unsigned long dura = millis() + aDuration;
     ourBuzzTimeTill = max(dura, ourBuzzTimeTill);
@@ -1359,6 +1471,9 @@ void initAngleMeasure() {
   }
   if (ourConfig.angleInversion != -1) {
     ourConfig.angleInversion = 1;
+  }
+  if (ourConfig.rudderSize < 0 || ourConfig.rudderSize > 300) {
+    ourConfig.rudderSize = 30;
   }
   if (String((uint8_t) ourConfig.calibrationOffsetEnabled).equals("255")) {
     // if config is not stored before
@@ -1542,11 +1657,11 @@ double getAmplitude(double aAngle) {
   double res;
   if (ourConfig.amplitudeCalcMethod == CHORD) {
     // sin (angle/2) = sin(angle/2 *M_PI/180)
-    res = sin(aAngle*M_PI/360) * 2 * ourRudderSize * ourConfig.amplitudeInversion;
+    res = sin(aAngle*M_PI/360) * 2 * ourConfig.rudderSize * ourConfig.amplitudeInversion;
   } else if (ourConfig.amplitudeCalcMethod == VERTICAL_DISTANCE) {
-    res =  sin(aAngle*M_PI/180) * ourRudderSize * ourConfig.amplitudeInversion;
+    res =  sin(aAngle*M_PI/180) * ourConfig.rudderSize * ourConfig.amplitudeInversion;
   } else {
-    res =  (aAngle/180*M_PI * ourRudderSize) * ourConfig.amplitudeInversion;
+    res =  (aAngle/180*M_PI * ourConfig.rudderSize) * ourConfig.amplitudeInversion;
   }
   return res;
 }
@@ -1961,7 +2076,7 @@ void restoreProtocolDataSet(uint8_t aIdx) {
       initPresetInPercent(i, (-100 + i*100));
     }
     // dataSet->servoPos = getServoPosInMicroSeconds();
-    // ourRudderSize = dataSet->rudderSize = ourRudderSize;
+    // ourConfig.rudderSize = dataSet->rudderSize = ourConfig.rudderSize;
     // dataSet->angle = getRoundedAngle();
     ourServoLimit[MIN_IDX] = ourConfig.servoPulseWidthPairFullRange[MIN_IDX];
     ourServoLimit[MAX_IDX] = ourConfig.servoPulseWidthPairFullRange[MAX_IDX];
@@ -1977,7 +2092,7 @@ void restoreProtocolDataSet(uint8_t aIdx) {
       ourProtocolData.currentPresetAngles[i] = dataSet->presetAngles[i];
     }
     // dataSet->servoPos = getServoPosInMicroSeconds();
-    ourRudderSize = dataSet->rudderSize;
+    ourConfig.rudderSize = dataSet->rudderSize;
     ourServoDirection = dataSet->servoDirection;
     dataSet->angle = getRoundedAngle();
     ourServoLimit[MIN_IDX] = dataSet->limitLow;
@@ -2016,7 +2131,7 @@ String getResponse4Presets() {
   }
 
   // rudder size
-  retVal += String("id_rudderSize") + "=" + ourRudderSize + MYSEP_STR;
+  retVal += String("id_rudderSize") + "=" + ourConfig.rudderSize + MYSEP_STR;
   return retVal;
 }
 
@@ -2044,7 +2159,7 @@ void storeProtocolDataSet(uint8_t aIdx) {
     dataSet->presetAngles[i] = ourProtocolData.currentPresetAngles[i];
   }
   dataSet->servoPos = getServoPosInMicroSeconds();
-  dataSet->rudderSize = ourRudderSize;
+  dataSet->rudderSize = ourConfig.rudderSize;
   dataSet->servoDirection = ourServoDirection;
   dataSet->angle = getRoundedAngle();
   dataSet->limitLow = ourServoLimit[MIN_IDX];
@@ -2149,8 +2264,8 @@ void setDataReq() {
     }
   } else
   if ( name == "id_rudderSize") {
-    ourRudderSize = double(atoi(value.c_str()))/10;
-    Serial.println("setting rudderSize: " + String(ourRudderSize));
+    ourConfig.rudderSize = double(atoi(value.c_str()))/10;
+    Serial.println("setting rudderSize: " + String(ourConfig.rudderSize));
   } else
   if ( name.equals("id_dataset_descr")) {
     ourProtocolData.datasetDescription = value;
@@ -2460,7 +2575,7 @@ void getDataReq() {
       }
     } else
     if (argName.equals("id_rudderSize")) {
-      response += argName + "=" + ourRudderSize + MYSEP_STR;
+      response += argName + "=" + ourConfig.rudderSize + MYSEP_STR;
     } else
     if (argName.equals("id_proto_servo_function_def")) {
       response += argName + "=" + ourProtocolData.currentFunctionIdx + MYSEP_STR;
@@ -3139,9 +3254,10 @@ void printConfig(const char* aContext) {
   Serial.println("angle sensor settings:");
   Serial.print("  axis                     = "); Serial.println(ourConfig.axis);
   Serial.print("  amplitudePrecision       = "); Serial.println(ourConfig.amplitudePrecision);
+  Serial.print("  amplitudeInversion       = "); Serial.println(ourConfig.amplitudeInversion);
+  Serial.print("  rudderSize               = "); Serial.println(ourConfig.rudderSize);
   Serial.print("  anglePrecision           = "); Serial.println(ourConfig.anglePrecision);
   Serial.print("  angleInversion           = "); Serial.println(ourConfig.angleInversion);
-  Serial.print("  amplitudeInversion       = "); Serial.println(ourConfig.amplitudeInversion);
   Serial.print("  xAccelOffet              = "); Serial.println(ourConfig.xAccelOffset);
   Serial.print("  yAccelOffet              = "); Serial.println(ourConfig.yAccelOffset);
   Serial.print("  zAccelOffet              = "); Serial.println(ourConfig.zAccelOffset);
@@ -3168,9 +3284,12 @@ void setDefaultConfig() {
   strncpy(ourConfig.version , CONFIG_VERSION, CONFIG_VERSION_L);
   ourConfig.axis = xAxis;
   ourConfig.amplitudeInversion = 1;
+  ourConfig.rudderSize = 30;
   ourConfig.angleInversion = 1;
   ourConfig.apIsActive=true;
   ourConfig.anglePrecision = P010;
+  ourConfig.oledFlipped = false;
+  ourConfig.rotaryEncoderFlipped = false;
   ourConfig.amplitudePrecision = P050;
   strncpy(ourConfig.wlanSsid , "", CONFIG_SSID_L);
   strncpy(ourConfig.wlanPasswd, "", CONFIG_PASSW_L);
