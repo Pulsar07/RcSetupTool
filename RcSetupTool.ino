@@ -131,9 +131,10 @@ Bounce2::Button ourPushButton = Bounce2::Button();
 // V0.171 : second draft: more menus and settings an enhance GUI vor the 128x32 OLED
 // V0.172 : bug fix: current smoothing disabled, menu back handling with one click fixed
 // V0.173 : bug fix: current / ACS712 handling optimized and some other small enhancements
-// V0.174 : new settings for buzzer, angle and rudder inversion and save config 
+// V0.174 : new settings for buzzer, angle and rudder inversion, display rotation and safe config
+// V0.175 : new settings for max current alarm and some menu enhancements
 
-#define APP_VERSION "V0.174"
+#define APP_VERSION "V0.175"
 
 /**
  * \file RcSetupTool.ino
@@ -363,6 +364,7 @@ static float ourMaxAmpl;
 static boolean ourIsMeasureActive=false;
 float mySmoothedCurrent = 0.0f;
 float ourServoCurrent;
+float ourServoAlarmCurrent = 0.6f;
 
 static unsigned long ourBuzzTimeTill = 0;
 static boolean ourBuzzOn = false; 
@@ -371,6 +373,7 @@ static boolean ourBuzzerEnabled = true;
 enum ToolContext {
   BASE_MENU_PAGE,
   SERVO_MENU_PAGE,
+  MULTI_MENU_PAGE,
   ANGLE_MENU_PAGE,
   SETTINGS_MENU_PAGE,
   SERVO_PAGE,
@@ -382,12 +385,14 @@ enum ToolContext {
   SET_RUDDER_INVERS,
   SET_ANGLE_INVERS,
   EXPERT_ADMIN_PAGE,
+  SET_ALARM_CURRENT,
   INFO_PAGE,
   DEBUG_PAGE,
 };
 
 ToolContext ourContext=BASE_MENU_PAGE;
 
+// BASE_MENU_PAGE
 const char* ourBaseMenu0 = "0:Multi-Tool";
 const char* ourBaseMenu1 = "1:Servocontroller";
 const char* ourBaseMenu2 = "2:Winkelmesser";
@@ -397,25 +402,38 @@ const char* ourBaseMenu5 = "5:Debug-Anzeige";
 const char* ourBaseMenuItems[] = {ourBaseMenu0, ourBaseMenu1, ourBaseMenu2, ourBaseMenu3, ourBaseMenu4, ourBaseMenu5};
 const uint8_t ourBaseMenuSize = sizeof(ourBaseMenuItems) / sizeof(char*);;
 
+// SERVO_MENU_PAGE
 const char* ourServoMenu0 = "0:Servo-Pos=0%";
-const char* ourServoMenu1 = "1:Tara-Winkel";
-const char* ourServoMenu2 = "2:Inv.Winkelanzeige";
-const char* ourServoMenu3 = "3:Setze Rudertiefe";
-const char* ourServoMenu4 = "4:Inv. Ruderanzeige";
-const char* ourServoMenu5 = "5:Setze Servoschritte";
-const char* ourServoMenu6 = "6:zurueck";
-const char* ourServoMenu7 = "7:Hauptmenu";
-const char* ourServoMenuItems[] = {ourServoMenu0, ourServoMenu1, ourServoMenu2, ourServoMenu3, ourServoMenu4, ourServoMenu5, ourServoMenu6, ourServoMenu7};
+const char* ourServoMenu1 = "1:Setze Servoschritte"; // SET_SERVO_STEPS
+const char* ourServoMenu2 = "2:Setze Stromalarm";  // SET_ALARM_CURRENT
+const char* ourServoMenu3 = "3:zurueck";
+const char* ourServoMenu4 = "4:Hauptmenu";
+const char* ourServoMenuItems[] = {ourServoMenu0, ourServoMenu1, ourServoMenu2, ourServoMenu3, ourServoMenu4};
 const uint8_t ourServoMenuSize = sizeof(ourServoMenuItems) / sizeof(char*);;
 
+// MULTI_MENU_PAGE
+const char* ourMultiMenu0 = "0:Servo-Pos=0%";
+const char* ourMultiMenu1 = "1:Tara-Winkel"; 
+const char* ourMultiMenu2 = "2:Inv.Winkelanzeige"; // SET_ANGLE_INVERS
+const char* ourMultiMenu3 = "3:Setze Rudertiefe"; // SET_RUDDER_DEPTH
+const char* ourMultiMenu4 = "4:Inv. Ruderanzeige"; // SET_RUDDER_INVERS
+const char* ourMultiMenu5 = "5:Setze Servoschritte"; // SET_SERVO_STEPS
+const char* ourMultiMenu6 = "6:Setze Stromalarm";  // SET_ALARM_CURRENT
+const char* ourMultiMenu7 = "7:zurueck";
+const char* ourMultiMenu8 = "8:Hauptmenu";
+const char* ourMultiMenuItems[] = {ourMultiMenu0, ourMultiMenu1, ourMultiMenu2, ourMultiMenu3, ourMultiMenu4, ourMultiMenu5, ourMultiMenu6, ourMultiMenu7, ourMultiMenu8};
+const uint8_t ourMultiMenuSize = sizeof(ourMultiMenuItems) / sizeof(char*);;
+
+// ANGLE_MENU_PAGE
 const char* ourAngleMenu0 = "0:Tara-Winkel";
-const char* ourAngleMenu1 = "1:Inv.Winkelanzeige";
-const char* ourAngleMenu2 = "2:Setze Rudertiefe";
-const char* ourAngleMenu3 = "3:Inv. Ruderanzeige";
+const char* ourAngleMenu1 = "1:Inv.Winkelanzeige"; // SET_ANGLE_INVERS
+const char* ourAngleMenu2 = "2:Setze Rudertiefe"; // SET_RUDDER_DEPTH
+const char* ourAngleMenu3 = "3:Inv. Ruderanzeige"; // SET_RUDDER_INVERS
 const char* ourAngleMenu4 = "4:Hauptmenu";
 const char* ourAngleMenuItems[] = {ourAngleMenu0, ourAngleMenu1, ourAngleMenu2, ourAngleMenu3, ourAngleMenu4};
 const uint8_t ourAngleMenuSize = sizeof(ourAngleMenuItems) / sizeof(char*);;
 
+// SETTINGS_MENU_PAGE
 const char* ourSettingsMenu0 = "0:Buzzer an/aus";
 const char* ourSettingsMenu1 = "1:Anzeige drehen";
 const char* ourSettingsMenu2 = "2:Drehknopf invert.";
@@ -737,6 +755,7 @@ void showOLEDDebugInfo() {
 }
 
 void showOLEDSetServoSteps() {
+  // SET_SERVO_STEPS:
   ourOLED.setFont(oledFontNormal);
   ourOLED.setCursor(0, 15);
   ourOLED.print("Servo-Steps=");
@@ -745,11 +764,21 @@ void showOLEDSetServoSteps() {
 }
 
 void showOLEDSetRudderDepth() {
+  // SET_RUDDER_DEPTH:
   ourOLED.setFont(oledFontNormal);
   ourOLED.setCursor(0, 15);
   ourOLED.print("Rudertiefe=");
   ourOLED.print(String(ourConfig.rudderSize));
   ourOLED.print("mm");
+}
+
+void showOLEDSetAlarmCurrent() {
+  // SET_ALARM_CURRENT:
+  ourOLED.setFont(oledFontNormal);
+  ourOLED.setCursor(0, 15);
+  ourOLED.print("Alarm bei I=");
+  ourOLED.print(String(ourServoAlarmCurrent, 1));
+  ourOLED.print("A");
 }
 
 void showOLEDServoPositionPage(int16_t aPosition) {
@@ -870,6 +899,12 @@ void updateOLED(unsigned long aNow) {
       case SET_RUDDER_DEPTH:
         showOLEDSetRudderDepth();
         break;
+      case SET_ALARM_CURRENT:
+        showOLEDSetAlarmCurrent();
+        break;
+      case MULTI_MENU_PAGE:
+        showOLEDMenu(ourMultiMenuItems, ourMultiMenuSize);
+        break;
       case SERVO_MENU_PAGE:
         showOLEDMenu(ourServoMenuItems, ourServoMenuSize);
         break;
@@ -965,11 +1000,15 @@ void updatePushButton(unsigned long aNow) {
             resetRotaryEncoder();
             break;
           case SERVO_PAGE:
+            // save the context for back jump
+            backContext=ourContext;
+            ourContext=SERVO_MENU_PAGE;
+            resetRotaryEncoder();
+            break;
           case MULTI_TOOL_PAGE:
             // save the context for back jump
             backContext=ourContext;
-
-            ourContext=SERVO_MENU_PAGE;
+            ourContext=MULTI_MENU_PAGE;
             resetRotaryEncoder();
             break;
           case SETTINGS_MENU_PAGE:  // -> ourSettingsMenuItems
@@ -1050,6 +1089,41 @@ void updatePushButton(unsigned long aNow) {
                 resetRotaryEncoder();
                 break;
               case 1:
+                // "1:Setze Servoschritte";
+                buzzOn(1);
+                ourContext=SET_SERVO_STEPS;
+                resetRotaryEncoder();
+                break;
+              case 2:
+                // "2:Setze Stromalarm";
+                buzzOn(1);
+                ourContext=SET_ALARM_CURRENT;
+                resetRotaryEncoder();
+                break;
+              case 3:
+                // "3:zurück";
+                buzzOn(1);
+                ourContext=backContext;
+                resetRotaryEncoder();
+                break;
+              case 4:
+                buzzOn(1);
+                // "4:Hauptmenu";
+                ourContext=BASE_MENU_PAGE;
+                resetRotaryEncoder();
+                break;
+            }
+            break;
+          case MULTI_MENU_PAGE: // -> ourMultiMenuItems
+            switch (getModulo(ourRotaryMenuPosition, ourMultiMenuSize)){  // !! use the right size here !!
+              case 0:
+                // "0:Servo-Pos=0%";
+                buzzOn(1);
+                setServoPosInPercent(0);
+                ourContext=backContext;
+                resetRotaryEncoder();
+                break;
+              case 1:
                 // "1:Tara-Winkel";
                 buzzOn(1);
                 taraAngle();
@@ -1081,25 +1155,28 @@ void updatePushButton(unsigned long aNow) {
                 resetRotaryEncoder();
                 break;
               case 6:
-                // "6:zurück";
+                // "6:Setze Stromalarm";
+                buzzOn(1);
+                ourContext=SET_ALARM_CURRENT;
+                resetRotaryEncoder();
+                break;
+              case 7:
+                // "7:zurück";
                 buzzOn(1);
                 ourContext=backContext;
                 resetRotaryEncoder();
                 break;
-              case 7:
+              case 8:
                 buzzOn(1);
-                // "7:Hauptmenu";
+                // "8:Hauptmenu";
                 ourContext=BASE_MENU_PAGE;
                 resetRotaryEncoder();
                 break;
             }
             break;
           case SET_SERVO_STEPS:
-            buzzOn(1);
-            ourContext=backContext;
-            resetRotaryEncoder();
-            break;
           case SET_RUDDER_DEPTH:
+          case SET_ALARM_CURRENT:
             buzzOn(1);
             ourContext=backContext;
             resetRotaryEncoder();
@@ -1278,8 +1355,14 @@ void updateRotaryEncoder(unsigned long aNow) {
       case SET_RUDDER_DEPTH:
         ourConfig.rudderSize += delta;
         break;
+      case SET_ALARM_CURRENT:
+        ourServoAlarmCurrent += 0.1f*delta;
+        ourServoAlarmCurrent = max(ourServoAlarmCurrent, 0.0f);
+        ourServoAlarmCurrent = min(ourServoAlarmCurrent, 5.0f);
+        break;
       case BASE_MENU_PAGE:
       case SERVO_MENU_PAGE:
+      case MULTI_MENU_PAGE:
       case ANGLE_MENU_PAGE:
         buzzOn(1);
         break;
@@ -1314,7 +1397,7 @@ void updateCurrentSensor(unsigned long aNow) {
   ourServoCurrent = smoothedCurrent*3.3/1024/0.185;
   ourServoCurrent = max(0.0f, ourServoCurrent);
   ourDebug3 = String(ourServoCurrent,1);
-  if (ourServoCurrent > 0.6 ) {
+  if (ourServoCurrent > ourServoAlarmCurrent ) {
     buzzOn(500);
   }
 }
